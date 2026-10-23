@@ -24,7 +24,7 @@
 - [🔐 Authentication](#-authentication)
 - [🗄 Database Schema](#-database-schema)
 - [🔌 API Documentation](#-api-documentation)
-- [🔐 Security](#-security)
+- [🔐 Security & Privacy](#-security--privacy)
 - [⚡ Performance](#-performance)
 - [🧪 Testing](#-testing)
 - [📋 Prerequisites](#-prerequisites)
@@ -889,42 +889,99 @@ All error responses follow this structure:
 
 ---
 
-## 🔐 Security
+## 🔐 Security & Privacy
 
-### Best Practices Implemented
+CodeOne is designed to protect user-specific coding analytics, private notes, goals, linked platform accounts, and administrative actions. Security controls must be enforced by the backend; hiding frontend controls is not authorization.
 
-#### Password Security
-- **bcrypt hashing** with 10 salt rounds
-- **Minimum requirements:** 8 characters, 1 uppercase, 1 number
-- **Password reset** via secure email tokens (1-hour expiry)
-- **Account lockout** after 5 failed attempts (15-minute cooldown)
+> **Implementation status:** This section documents the security design and implementation targets. Do not describe a control as production-ready until it is implemented, configured, and covered by tests.
 
-#### Token Security
-- **JWT tokens** with 7-day expiration
-- **Refresh token rotation** for extended sessions
-- **Token blacklisting** on logout
-- **Secure cookie flags:** HttpOnly, Secure, SameSite
+### 🛡️ Role-Based Access Control (RBAC)
 
-#### API Security
-- **Rate limiting:** 100 requests/15 minutes per IP
-- **CORS configuration:** Whitelist-based origins
-- **SQL injection prevention:** Parameterized queries
-- **XSS protection:** Input sanitization
-- **CSRF protection:** Double-submit cookie pattern
+CodeOne uses a default-deny permission model with four application roles:
 
-#### Database Security
-- **Encrypted connections** (SSL/TLS)
-- **Role-based access control**
-- **Regular backups** (daily automated)
-- **Audit logging** for sensitive operations
+| Role | Intended permissions |
+|------|----------------------|
+| **User** | View and manage their own problems, notes, goals, linked accounts, and privacy settings. |
+| **Moderator** | Handle reports and approved community-moderation actions; no automatic access to private analytics or credentials. |
+| **Admin** | Manage users, roles, and system configuration through audited administrative endpoints. |
+| **Auditor** | Read security audit events and investigate activity; cannot change user data or audit records through the application. |
 
-#### Environment Security
-- **Secret rotation** every 90 days
-- **Environment variable encryption**
-- **No secrets in codebase**
-- **.env files** in .gitignore
+- Authenticate the request and load the user's current role/permissions on the server.
+- Enforce authorization in middleware and again in service/data-access operations where appropriate.
+- Never trust a role, user ID, or permission supplied by the client.
+- Return `403 Forbidden` for authenticated users who lack permission and `401 Unauthorized` when authentication is missing or invalid.
+- Protect role changes as privileged actions and record them in the audit log.
 
----
+### 🔒 Object-Level Authorization & IDOR Protection
+
+Every endpoint that reads or modifies a user-owned resource must verify ownership or an explicit permission before returning or changing it.
+
+Examples include `/api/problems/:problemId`, private notes, goals, profile settings, linked coding accounts, exports, and analytics endpoints.
+
+- Scope database queries to the authenticated user wherever possible (for example, query by both resource ID and `user_id`).
+- Do not assume that an unpredictable UUID or a hidden frontend link prevents unauthorized access.
+- Test attempts to replace IDs in URLs, query strings, and request bodies with another user's resource IDs.
+- Use consistent error responses that do not leak whether another user's private record exists.
+
+### 👁️ Privacy Controls & Data Minimization
+
+- Keep private notes, goals, account settings, and personal analytics visible only to their owner and specifically authorized roles.
+- Support public/private profile settings and expose only fields explicitly approved for public display.
+- Mask email addresses and other personal information in administrative views when full values are not required.
+- Never expose password hashes, access tokens, refresh tokens, OAuth secrets, or internal security metadata in API responses or logs.
+- Store coding-platform usernames where possible instead of platform passwords; do not request external platform passwords.
+- Validate ownership and permissions before generating data exports.
+
+### 🧾 Append-Only, Tamper-Evident Audit Logging
+
+Record security-sensitive events such as successful and failed logins, access-denied events, role changes, account linking/unlinking, private-data access, exports, and administrative changes.
+
+Recommended event fields:
+
+```text
+id, occurred_at, actor_user_id, actor_role, action,
+resource_type, resource_id, outcome, request_id, source_ip
+```
+
+- Do not log passwords, bearer tokens, refresh tokens, or unnecessary personal data.
+- Give the application role permission to insert audit events and read only the records required by its workflows; do not grant routine application code permission to update or delete audit rows.
+- Add database triggers or a separate restricted logging service where appropriate, and use hash chaining or external protected storage to make tampering detectable.
+- Restrict audit-log access to authorized auditors and administrators, and audit access to the logs themselves.
+- Note: database owners and infrastructure administrators may still be able to alter data. “Immutable” should only be claimed when the chosen controls and threat model support that claim.
+
+### ⏱️ Secure Sessions & Token Lifecycle
+
+- Use short-lived access tokens (for example, 15 minutes) and rotate refresh tokens on every successful refresh.
+- Store refresh tokens in `HttpOnly`, `Secure`, appropriately configured `SameSite` cookies when using cookie-based sessions; keep signing secrets server-side.
+- Store refresh-token hashes or session identifiers server-side so sessions can be revoked on logout, password reset, suspicious activity, or account disablement.
+- Detect refresh-token reuse and revoke the affected token family/session.
+- Enforce configurable idle and absolute session timeouts on the server. A five-minute idle timeout may be offered as a strict option, but choose a usability-appropriate default.
+- Apply CSRF protection when cookie-based authentication requires it, and use HTTPS in production.
+
+### 🚦 API & Application Hardening
+
+- Rate-limit login, registration, password-reset, refresh, sync, and export endpoints.
+- Validate request bodies, query parameters, and path parameters with a schema-validation library such as Joi.
+- Use parameterized database access through Prisma; never concatenate untrusted input into SQL.
+- Configure CORS with an explicit allowlist, security headers, safe error responses, and request-size limits.
+- Use secure password hashing (bcrypt or Argon2) and never store plaintext passwords.
+- Keep secrets in deployment environment/secret-management systems; never commit real secrets or production credentials.
+- Protect administrative and high-impact actions with re-authentication or additional verification when appropriate.
+- Apply least-privilege database roles and maintain tested backups and a security-incident response process.
+
+### 🧪 Security Verification Checklist
+
+Before calling the security layer complete, add automated tests that verify:
+
+- [ ] A regular user cannot call admin/moderator endpoints directly.
+- [ ] User A cannot read, edit, or export User B's private resources by changing an ID.
+- [ ] A user cannot promote their own role by editing a request body.
+- [ ] Expired, revoked, and reused refresh tokens are rejected.
+- [ ] Rate limits are enforced on authentication and sensitive endpoints.
+- [ ] Private fields and tokens never appear in API responses or logs.
+- [ ] Audit events are written for privileged and sensitive actions.
+- [ ] The application database role cannot update or delete audit records.
+- [ ] Auditor access is read-only and all audit-log access is itself recorded.
 
 ## ⚡ Performance
 
@@ -2036,6 +2093,7 @@ Output:
 - [x] Problem management
 - [x] Contest calendar
 - [x] Authentication (JWT + OAuth)
+- [ ] Security hardening: RBAC, IDOR protection, privacy controls, audit logging, and secure session lifecycle
 
 ### Phase 2: Enhanced Analytics 🚧 (In Progress)
 - [x] Difficulty progression charts
