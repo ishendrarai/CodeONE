@@ -1,4 +1,4 @@
-# 🚀 CodeOne — Consolidate Your Competitive Programming Journey  
+# 🚀 CodeONE — Consolidate Your Competitive Programming Journey  
 
 > The unified analytics layer for competitive programmers.  
 > Track. Analyse. Improve. Stay consistent.
@@ -15,7 +15,7 @@
 ## 📌 Table of Contents
 
 - [✨ Overview](#-overview)
-- [🚀 Why CodeOne?](#-why-codeone)
+- [🚀 Why CodeONE?](#-why-codeone)
 - [🌐 Live Demo](#-live-demo)
 - [📸 Screenshots](#-screenshots)
 - [🔥 Core Features](#-core-features)
@@ -47,7 +47,7 @@
 
 ## ✨ Overview
 
-**CodeOne** is a full-stack competitive programming analytics platform built for developers, students, and interview aspirants solving problems across multiple platforms:
+**CodeONE** is a full-stack competitive programming analytics platform built for developers, students, and interview aspirants solving problems across multiple platforms:
 
 | Platform | Support Status | Features |
 |----------|---------------|----------|
@@ -57,7 +57,7 @@
 | 🟢 AtCoder | Full Integration | Problems, Contests, Rating |
 | 🟢 CodeChef | Full Integration | Problems, Contests, Rating |
 
-Instead of switching between multiple dashboards, CodeOne provides a **single intelligent control center** for:
+Instead of switching between multiple dashboards, CodeONE provides a **single intelligent control center** for:
 
 - 📊 **Progress tracking** — Unified view across all platforms
 - 🔥 **Streak monitoring** — Never break your momentum
@@ -69,7 +69,7 @@ Instead of switching between multiple dashboards, CodeOne provides a **single in
 
 ---
 
-## 🚀 Why CodeOne?
+## 🚀 Why CodeONE?
 
 ### The Problem
 
@@ -83,7 +83,7 @@ Competitive programmers face:
 
 ### The Solution
 
-CodeOne acts as a **performance intelligence layer** on top of existing platforms:
+CodeONE acts as a **performance intelligence layer** on top of existing platforms:
 
 - ✅ **Single dashboard** for all platforms
 - ✅ **Global streak tracking** across all submissions
@@ -891,13 +891,13 @@ All error responses follow this structure:
 
 ## 🔐 Security & Privacy
 
-CodeOne is designed to protect user-specific coding analytics, private notes, goals, linked platform accounts, and administrative actions. Security controls must be enforced by the backend; hiding frontend controls is not authorization.
+CodeONE is designed to protect user-specific coding analytics, private notes, goals, linked platform accounts, and administrative actions. Security controls must be enforced by the backend; hiding frontend controls is not authorization.
 
 > **Implementation status:** This section documents the security design and implementation targets. Do not describe a control as production-ready until it is implemented, configured, and covered by tests.
 
 ### 🛡️ Role-Based Access Control (RBAC)
 
-CodeOne uses a default-deny permission model with four application roles:
+CodeONE uses a default-deny permission model with four application roles:
 
 | Role | Intended permissions |
 |------|----------------------|
@@ -1235,7 +1235,7 @@ Client will start on **http://localhost:5173**
 
 ### ✅ Verify Installation
 
-Visit **http://localhost:5173** in your browser. You should see the CodeOne landing page.
+Visit **http://localhost:5173** in your browser. You should see the CodeONE landing page.
 
 ---
 
@@ -1904,19 +1904,19 @@ KEY = value  # ✗ Wrong
 
 ### General Questions
 
-**Q: Is CodeOne free to use?**  
-A: Yes, CodeOne is completely free and open-source under the MIT license.
+**Q: Is CodeONE free to use?**  
+A: Yes, CodeONE is completely free and open-source under the MIT license.
 
 **Q: Which coding platforms are supported?**  
 A: Currently: LeetCode, Codeforces, HackerRank, AtCoder, and CodeChef. More platforms coming soon!
 
 **Q: Do I need to provide API keys for the platforms?**  
-A: No, CodeOne uses public APIs and web scraping where necessary. You only need to provide your username.
+A: No, CodeONE uses public APIs and web scraping where necessary. You only need to provide your username.
 
 **Q: Will this work if I make my LeetCode profile private?**  
-A: No, your profile must be public for CodeOne to fetch your submission data.
+A: No, your profile must be public for CodeONE to fetch your submission data.
 
-**Q: How often does CodeOne sync my data?**  
+**Q: How often does CodeONE sync my data?**  
 A: Automatically every hour. You can also manually trigger sync anytime.
 
 ---
@@ -1924,7 +1924,7 @@ A: Automatically every hour. You can also manually trigger sync anytime.
 ### Technical Questions
 
 **Q: What's the difference between this and LeetCode/Codeforces dashboards?**  
-A: CodeOne provides **unified analytics** across all platforms in one place, plus features like global streaks, weakness detection, and contest aggregation.
+A: CodeONE provides **unified analytics** across all platforms in one place, plus features like global streaks, weakness detection, and contest aggregation.
 
 **Q: How is my data stored?**  
 A: All data is stored securely in PostgreSQL with encrypted passwords. We never store your platform passwords.
@@ -1936,13 +1936,13 @@ A: Yes, you can export all your analytics data in JSON or CSV format from your p
 A: Not yet, but it's on our roadmap! Currently, the web interface is mobile-responsive.
 
 **Q: Can I use this for my team/company?**  
-A: Absolutely! You can self-host CodeOne for your organization and customize it as needed.
+A: Absolutely! You can self-host CodeONE for your organization and customize it as needed.
 
 ---
 
 ### Development Questions
 
-**Q: Can I contribute to CodeOne?**  
+**Q: Can I contribute to CodeONE?**  
 A: Yes! Check out our [Contributing](#-contributing) section for guidelines.
 
 **Q: What's the tech stack?**  
@@ -2069,7 +2069,7 @@ Output:
 
 ## 🏆 Key Highlights
 
-### What Makes CodeOne Special?
+### What Makes CodeONE Special?
 
 ✨ **Unified Intelligence Layer** — First platform to aggregate 5+ coding sites  
 🔥 **Streak Tracking** — Never lose motivation with visual progress  
@@ -2138,11 +2138,11 @@ We welcome contributions from the community! Here's how you can help:
 ### How to Contribute
 
 1. **Fork the repository**
-   Go to [github.com/ishendrarai/CodeOne](https://github.com/ishendrarai/CodeOne) and click **Fork**, then clone your fork:
+   Go to [github.com/ishendrarai/CodeONE](https://github.com/ishendrarai/CodeONE) and click **Fork**, then clone your fork:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/CodeOne.git
-   cd CodeOne
-   git remote add upstream https://github.com/ishendrarai/CodeOne.git
+   git clone https://github.com/YOUR_USERNAME/CodeONE.git
+   cd CodeONE
+   git remote add upstream https://github.com/ishendrarai/CodeONE.git
    ```
 
 2. **Create a feature branch**
@@ -2225,7 +2225,7 @@ Looking for where to start? Check out issues labeled:
 
 ## 👥 Contributors
 
-Thanks to all contributors who have helped make CodeOne better! 🙏
+Thanks to all contributors who have helped make CodeONE better! 🙏
 
 <!-- ALL-CONTRIBUTORS-LIST:START -->
 <table>
@@ -2243,7 +2243,7 @@ Thanks to all contributors who have helped make CodeOne better! 🙏
 </table>
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
-Want to see your name here? [Contribute to CodeOne!](#-contributing)
+Want to see your name here? [Contribute to CodeONE!](#-contributing)
 
 ---
 
@@ -2266,22 +2266,22 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 ### Project Links
 
 - **Live Demo:** <!-- https://codeone-demo.vercel.app (Pending deployment) -->
-- **Repository:** https://github.com/ishendrarai/CodeOne
+- **Repository:** https://github.com/ishendrarai/CodeONE
 - **Documentation:** https://docs.codeone.app
-- **Issue Tracker:** https://github.com/ishendrarai/CodeOne/issues
-- **Roadmap:** https://github.com/ishendrarai/CodeOne/projects
+- **Issue Tracker:** https://github.com/ishendrarai/CodeONE/issues
+- **Roadmap:** https://github.com/ishendrarai/CodeONE/projects
 
 ---
 
 ## 🌟 Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=ishendrarai/CodeOne&type=Date)](https://star-history.com/#ishendrarai/CodeOne&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=ishendrarai/CodeONE&type=Date)](https://star-history.com/#ishendrarai/CodeONE&Date)
 
 ---
 
 ## 🎯 Final Words
 
-**CodeOne** was built out of personal frustration with fragmented progress tracking across multiple competitive programming platforms. The goal was simple: create **one dashboard to rule them all**.
+**CodeONE** was built out of personal frustration with fragmented progress tracking across multiple competitive programming platforms. The goal was simple: create **one dashboard to rule them all**.
 
 Whether you're preparing for:
 - 🎓 **Coding interviews** at FAANG companies
@@ -2289,7 +2289,7 @@ Whether you're preparing for:
 - 📚 **Learning data structures & algorithms**
 - 🚀 **Personal skill development**
 
-CodeOne is here to help you stay consistent, track progress, and achieve mastery.
+CodeONE is here to help you stay consistent, track progress, and achieve mastery.
 
 > **"Success is the sum of small efforts, repeated day in and day out."**  
 > — Robert Collier
@@ -2300,14 +2300,14 @@ CodeOne is here to help you stay consistent, track progress, and achieve mastery
 
 ### Built for developers who don't just solve problems — they build mastery. 🚀
 
-**Give us a ⭐ if CodeOne helps your coding journey!**
+**Give us a ⭐ if CodeONE helps your coding journey!**
 
-[Report Bug](https://github.com/ishendrarai/CodeOne/issues) · [Request Feature](https://github.com/ishendrarai/CodeOne/issues) · [Join Discord](https://discord.gg/yourserver)
+[Report Bug](https://github.com/ishendrarai/CodeONE/issues) · [Request Feature](https://github.com/ishendrarai/CodeONE/issues) · [Join Discord](https://discord.gg/yourserver)
 
 </div>
 
 ---
 
 <div align="center">
-  <sub>Made with ❤️ by the CodeOne Team</sub>
+  <sub>Made with ❤️ by the CodeONE Team</sub>
 </div>
