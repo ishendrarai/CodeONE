@@ -2447,7 +2447,6 @@ This project is created and maintained as a **Major Project** by our team:
 
 | Avatar | Contributor | GitHub | Role |
 |:------:|:-----------:|:------:|:----:|
-
 | <a href="https://github.com/Anveshaaa23"><img src="https://github.com/Anveshaaa23.png" width="70" height="70" alt="Anvesha Singh" /></a> | **Anvesha Singh** | [@Anveshaaa23](https://github.com/Anveshaaa23) | Contributor |
 | <a href="https://github.com/astha0107"><img src="https://github.com/astha0107.png" width="70" height="70" alt="Astha" /></a> | **Astha** | [@astha0107](https://github.com/astha0107) | Contributor |
 | <a href="https://github.com/ayucode12"><img src="https://github.com/ayucode12.png" width="70" height="70" alt="Ayush" /></a> | **Ayush** | [@ayucode12](https://github.com/ayucode12) | Contributor |
