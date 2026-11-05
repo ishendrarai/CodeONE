@@ -48,7 +48,17 @@
 
 > **Project status:** This README describes the proposed system and researched integration options. It is not proof of a completed or deployed product. The source repository/application was not available during the documentation review. Feature statuses, architecture diagrams, API examples and setup instructions must be validated against the actual source code before being described as implemented.
 
-> **Important note on "API documented":** In this README, "API documented" means a public document or source was located. It does **not** mean CodeONE has connected to that API, tested it, or that its use is legally approved. The *API classification* of a platform (official, third-party, unofficial) is separate from CodeONE's *implementation status*; every platform entry is **RESEARCHED / NOT IMPLEMENTED** unless a future repository audit proves otherwise.
+> **Important note on "API documented":** In this README, "API documented" means a public document or source was located. It does **not** mean CodeONE has connected to that API, tested it, or that its use is legally approved. The *API classification* of a platform (official, third-party, unofficial) is separate from CodeONE's *implementation status*; every platform entry is **RESEARCHED / NOT IMPLEMENTED** unless a future repository audit proves otherwise. No platform integration is represented as implemented or tested in this README.
+
+The project aims to reduce dashboard fragmentation by building a **single analytics workspace** for:
+
+- 📊 **Progress tracking** — unified view across linked platforms
+- 🔥 **Streak monitoring** — keep your momentum
+- 📈 **Difficulty analysis** — identify your comfort zones
+- 🧠 **Topic mastery** — track weak areas systematically
+- 🏆 **Contest planning** — never miss important competitions
+- 📉 **Performance trends** — visualize growth over time
+- 🎯 **Goal management** — set and achieve daily/weekly targets
 
 ### ❌ The Problem
 
@@ -379,7 +389,7 @@ flowchart TB
 7. Adapter fetches data from the external source within its rate limits
 8. Normalized data is upserted into submissions / rating_history / problems
 9. Analytics inputs are refreshed; cache (if enabled) is invalidated
-10. sync_logs is updated (success / partial / failed)
+10. sync_logs is updated (success / partial / failed); the request logger records request metrics
 11. Client polls GET /api/v1/sync/logs or the account's last_synced timestamp
 ```
 
@@ -397,7 +407,7 @@ flowchart TB
 | 🔵 **Third-party API** | Independent provider collects or republishes platform data | Conditional; dependency and licensing review |
 | 🟡 **Unofficial API** | Undocumented endpoint, community wrapper or scraper; stability and permission risk | Low; explicit risk/permission review |
 | 📥 **Manual Import** | User-provided data (e.g. exported files) | Safe fallback; parsing must be validated |
-| ⚪ **Research Required** | Supported access not established | Do not assume an API exists |
+| ⚪ **Research Required** (original label: UNVERIFIED / NOT FOUND) | Supported access not established; no supported user-analytics API was verified | Do not assume an API exists |
 
 All entries below are **researched, not implemented**, unless a future repository audit proves otherwise.
 
@@ -427,7 +437,7 @@ All entries below are **researched, not implemented**, unless a future repositor
 
 | Source | Category | Notes |
 |---|---|---|
-| **CLIST.by API** (`clist.by/api/v4/`) | 🔵 Third-party aggregator (documented API of the aggregator) | Upcoming contests across many platforms with filters such as `upcoming=true`, `order_by=start`. It is not operated by the platforms themselves. Review API terms, key requirements, rate limits and attribution before approval |
+| **CLIST.by API** (`clist.by/api/v4/`) | 🔵 Third-party aggregator (documented API of the aggregator) | Upcoming contests across 50+ platforms (as advertised by the provider) with filters such as `upcoming=true`, `order_by=start`. It is not operated by the platforms themselves. Review API terms, key requirements, rate limits and attribution before approval |
 | **DOMjudge / ICPC Contest API** | 🟢 Official per contest | Only for known contest installations |
 | **AtCoder Problems datasets** | 🔵 Third-party | AtCoder contest/problem metadata; community-maintained |
 
@@ -600,6 +610,95 @@ erDiagram
     PROBLEMS }o--o{ TAGS : tagged_with
     USERS ||--o{ AUDIT_LOGS : acts_in
 ```
+
+<details>
+<summary><b>ER diagram with attributes for core entities (original design, updated)</b></summary>
+
+```mermaid
+erDiagram
+    USERS ||--o{ PLATFORM_ACCOUNTS : has
+    USERS ||--o{ USER_PROBLEMS : tracks
+    USERS ||--o{ GOALS : sets
+    USERS ||--o{ NOTIFICATIONS : receives
+    PROBLEMS ||--o{ USER_PROBLEMS : state_of
+    PROBLEMS }o--o{ TAGS : tagged_with
+    CONTESTS ||--o{ CONTEST_PARTICIPATIONS : includes
+    PLATFORM_ACCOUNTS ||--o{ CONTEST_PARTICIPATIONS : joins
+
+    USERS {
+        uuid id PK
+        string name
+        string email UK
+        string password_hash
+        string avatar_url
+        string role
+        boolean email_verified
+        timestamp created_at
+        timestamp last_login
+    }
+    PLATFORM_ACCOUNTS {
+        uuid id PK
+        uuid user_id FK
+        string platform_name
+        string username
+        string verification_status
+        integer rating
+        string rank
+        timestamp last_synced
+        boolean is_active
+    }
+    PROBLEMS {
+        uuid id PK
+        string platform
+        string problem_id
+        string title
+        string difficulty
+        integer difficulty_rating
+        string url
+        numeric acceptance_rate
+        timestamp added_at
+    }
+    USER_PROBLEMS {
+        uuid id PK
+        uuid user_id FK
+        uuid problem_id FK
+        string status
+        integer attempts
+        timestamp solved_at
+        text notes
+    }
+    TAGS {
+        uuid id PK
+        string name UK
+        string category
+    }
+    GOALS {
+        uuid id PK
+        uuid user_id FK
+        string type
+        integer target
+        integer current
+        date start_date
+        date end_date
+    }
+    CONTESTS {
+        uuid id PK
+        string platform
+        string name
+        timestamp start_time
+        integer duration_seconds
+        string url
+    }
+    CONTEST_PARTICIPATIONS {
+        uuid id PK
+        uuid platform_account_id FK
+        uuid contest_id FK
+        integer rank
+        integer rating_change
+    }
+```
+
+</details>
 
 ### 👤 Core Tables (Original Design, Refined)
 
@@ -1102,7 +1201,8 @@ Authorization: Bearer {accessToken}
   "data": [
     { "id": "uuid", "platform": "codeforces", "name": "Codeforces Round (Div. 2)",
       "startTime": "2026-11-12T14:35:00Z", "durationSeconds": 7200,
-      "url": "https://codeforces.com/contests" }
+      "url": "https://codeforces.com/contests",
+      "registrationUrl": "https://codeforces.com/contests" }
   ]
 }
 ```
@@ -1222,8 +1322,8 @@ OAuth identities are stored in `oauth_accounts` and linked to a user only after 
 
 ### ⏱️ Token Lifecycle (Proposed)
 
-- **Access token:** JWT, 15 minutes (`exp` = `iat` + 900). Held in memory; sent as a Bearer header; not stored in `localStorage`.
-- **Refresh token:** 7 days, in an `HttpOnly`, `Secure`, `SameSite` cookie. Only a **hash** is stored server-side (`refresh_tokens`).
+- **Access token:** JWT, 15 minutes (900 seconds; `exp` = `iat` + 900). Held in memory; sent as a Bearer header; not stored in `localStorage`.
+- **Refresh token:** 7 days, in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie (use `Lax` only if the OAuth redirect flow requires it). Only a **hash** is stored server-side (`refresh_tokens`).
 - **Rotation:** every refresh invalidates the used token and issues a new one.
 - **Reuse detection:** presenting a used or revoked refresh token revokes the whole session/token family.
 - **Sessions:** `user_sessions` supports listing and revoking sessions, idle and absolute timeouts, and revocation on logout, password reset or suspicious activity. Idle and absolute timeouts should be configurable; a five-minute idle timeout may be offered as a strict option, but choose a usability-appropriate default.
@@ -1252,7 +1352,7 @@ Keep the payload minimal; load the user's current role from the database when au
 | RBAC (default deny) | Proposed |
 | IDOR / object-level authorization | Proposed |
 | Rate limiting (auth: 5/min) | Proposed |
-| Account lockout after repeated failures | Proposed |
+| Account lockout after 5 failed login attempts (with safe unlock/backoff) | Proposed |
 | Append-only audit logging | Proposed |
 | Secrets management | Proposed |
 
@@ -1420,6 +1520,22 @@ A per-user LSTM/Transformer is not recommended initially: individual contest his
 
 - **Frontend:** code splitting with `React.lazy()`, lazy loading, memoization, debounced search, virtualized long lists
 
+### 🔬 Optimization Details (Original Notes)
+
+<details>
+<summary><b>Backend and frontend techniques</b></summary>
+
+- **Connection pooling:** PostgreSQL pool of about 20 connections as a starting point (tune with load tests)
+- **Query optimization:** `EXPLAIN ANALYZE` on representative queries; indexes on all foreign keys and filter columns
+- **Compression:** gzip for API responses
+- **Code splitting:** `React.lazy()`
+- **Lazy loading:** images and heavy components
+- **Memoization:** `React.memo` and `useMemo` where profiling shows benefit
+- **Debouncing:** search inputs
+- **Virtual scrolling:** very large lists
+
+</details>
+
 ### 📏 Measurement Plan
 
 | Metric | Plan | Current verified value |
@@ -1452,6 +1568,24 @@ Publish measured values only with test date, environment, workload, sample size 
 ### 🚧 CI/CD Quality Gates (Proposed)
 
 A pull request should not merge unless: lint passes, unit/integration/API tests pass, the build succeeds, migrations apply to a clean database, and coverage does not drop below an agreed threshold (TODO: set threshold).
+
+### 🗂️ Test Structure (Proposed)
+
+```text
+tests/
+├── unit/
+│   ├── controllers/
+│   ├── services/
+│   └── utils/
+├── integration/
+│   ├── api/
+│   │   ├── auth.test.js
+│   │   ├── analytics.test.js
+│   │   └── problems.test.js
+│   └── database/
+└── e2e/
+    └── user-flows.test.js
+```
 
 ### 💻 Commands
 
@@ -1507,6 +1641,25 @@ describe('POST /api/v1/auth/register', () => {
 | 6 | **AI Features** | Level 1 rule-based recommendations; Level 2 study plans/chatbot; Level 3 research | Level 1 shipped with tests; Level 2 prototype evaluated; AI limitations surfaced in UI |
 | 7 | **Social & Mobile Features** | Public profiles, leaderboard, friends, study groups, mobile app, browser extensions | Privacy controls verified before any public data; mobile MVP released |
 
+### 📝 Original Phase Checklists (Mapped to the Phases Above)
+
+<details>
+<summary><b>Show original items</b></summary>
+
+**Foundation & Core (original Phase 1)** — multi-platform account linking (only after platform ownership verification and API approval), unified dashboard, streak tracking, problem management, contest calendar, authentication (JWT + OAuth), security hardening (RBAC, IDOR protection, privacy controls, audit logging, secure session lifecycle) → Phases 1–3.
+
+**Enhanced Analytics (original Phase 2)** — difficulty progression charts, topic mastery breakdown, weekly/monthly reports, comparison with peers, performance predictions → Phase 4 (predictions are Level 3 AI).
+
+**AI Integration (original Phase 3)** — personalized problem recommendations, weakness detection algorithm, study plan generator, contest performance predictor, chatbot assistant → Phase 6.
+
+**Social Features (original Phase 4)** — public profile pages, global leaderboard, friend system, study groups, discussion forums → Phase 7.
+
+**Mobile & Extensions (original Phase 5)** — React Native mobile app (iOS/Android), browser extensions (Chrome, Firefox), desktop app (Electron), VS Code extension → Phase 7 / Future Ideas.
+
+**Advanced Features (original Phase 6)** — code snippet manager, interview preparation mode, mock contest simulator, video solution integration, mentorship matching → Future Ideas.
+
+</details>
+
 ### 💭 Future Ideas (Unscheduled)
 
 Code snippet manager, interview preparation mode, mock contest simulator, video solution integration, mentorship matching, desktop app, VS Code extension, discussion forums.
@@ -1535,6 +1688,8 @@ psql --version
 redis-cli --version   # only if using Redis
 ```
 
+**Optional tools:** Docker (containerized setup), Postman (API testing), pgAdmin (database management).
+
 ### 💻 Local Development Setup
 
 ```bash
@@ -1548,6 +1703,7 @@ cd ../client && npm install
 
 # 3. Create the database
 createdb codeone
+# or: psql -U postgres  ->  CREATE DATABASE codeone;  ->  \q
 
 # 4. Environment files
 cd ../server && cp .env.example .env
@@ -1567,6 +1723,8 @@ cd client && npm run dev    # http://localhost:5173
 ```
 
 > **Not verified:** the `.env.example` files, the `seed` script and the folder names `server/` and `client/` must be confirmed in the repository. If Redis is enabled, start it first (`redis-server`, check with `redis-cli ping`).
+
+**Verify installation:** open `http://localhost:5173` in your browser. Once the frontend is built and verified, you should see the CodeONE landing page. Also check that the API responds on `http://localhost:5000`.
 
 ### 🌍 Environment Variables
 
@@ -1636,6 +1794,51 @@ Notes:
 - LeetCode and HackerRank API keys are intentionally **not** listed: no approved public API access has been established for them.
 - OAuth client IDs are not needed on the frontend when the OAuth flow is handled server-side.
 - Generate secrets with: `node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"`
+
+<details>
+<summary><b>Optional / later environment variables (original notes)</b></summary>
+
+```env
+# server/.env — only if the feature exists
+MAX_FILE_SIZE=5242880
+ALLOWED_FILE_TYPES=image/jpeg,image/png,image/gif   # avatar uploads, if implemented
+SMTP_HOST=smtp.gmail.com                            # example provider; use an app-specific password
+
+# client/.env — feature flags and monitoring (all optional)
+VITE_ENABLE_ANALYTICS=true
+VITE_ENABLE_DARK_MODE=true
+VITE_ENABLE_NOTIFICATIONS=true
+VITE_SENTRY_DSN=
+```
+
+Variables from the original template that are **intentionally not part of the default setup**:
+
+```env
+# Redundant with DATABASE_URL / REDIS_URL — only if your code reads them separately
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=codeone
+DB_USER=your_username
+DB_PASSWORD=your_password
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+
+# NOT USED: no approved public API access has been established for these platforms.
+# Do not add keys or scrapers without written permission (see Section 7).
+# LEETCODE_API_KEY=
+# HACKERRANK_API_KEY=
+
+# Only needed if OAuth is started from the browser. The recommended server-side flow does not need them.
+# VITE_GOOGLE_CLIENT_ID=
+# VITE_GITHUB_CLIENT_ID=
+
+# Retired Universal Analytics ID format from the old template; use a current analytics provider instead
+# VITE_GA_TRACKING_ID=
+```
+
+Use a current analytics provider rather than the retired Universal Analytics (`UA-` IDs) from older templates.
+</details>
 
 ### 📁 Proposed Project Structure
 
@@ -1720,6 +1923,7 @@ docker/ (Dockerfile.client, Dockerfile.server, nginx.conf)
 scripts/ (setup.sh, migrate.sh, deploy.sh)
 docs/ (API.md, DEPLOYMENT.md, CONTRIBUTING.md)
 .github/workflows/ (ci.yml, cd.yml)
+Root: docker-compose.yml, .gitignore, .eslintrc.js, .prettierrc, LICENSE, README.md
 ```
 
 Note: the original `models/` folder is dropped because Prisma generates the data models from `schema.prisma`.
@@ -1751,6 +1955,68 @@ volumes:
 
 Run `docker compose up -d`, then follow the local setup steps with `DATABASE_URL` pointing at this container. A full multi-service compose file (backend + frontend) can be added once Dockerfiles exist and are tested. **Do not reuse these credentials in production.**
 
+<details>
+<summary><b>Full multi-service compose template (original, hardened)</b></summary>
+
+Requires `docker/Dockerfile.server` and `docker/Dockerfile.client` to exist and work. For **local development only**; replace every placeholder password and never publish database ports in production.
+
+```yaml
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: codeone
+      POSTGRES_USER: codeone_user
+      POSTGRES_PASSWORD: change-me-locally
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:                      # optional; remove if Redis is not enabled
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+
+  backend:
+    build:
+      context: ./server
+      dockerfile: ../docker/Dockerfile.server
+    ports:
+      - "5000:5000"
+    environment:
+      DATABASE_URL: postgresql://codeone_user:change-me-locally@postgres:5432/codeone
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
+
+  frontend:
+    build:
+      context: ./client
+      dockerfile: ../docker/Dockerfile.client
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:
+```
+</details>
+
+Useful commands (when a full compose file with application services exists):
+
+```bash
+docker compose build        # build images
+docker compose up -d        # start services
+docker compose logs -f      # follow logs
+docker compose down         # stop services
+```
+
 ### 🚀 Production Deployment
 
 **Recommended starting point:** Vercel (frontend) + a managed Node.js host (for example Render or Railway) + managed PostgreSQL.
@@ -1779,12 +2045,14 @@ Render (backend): connect the GitHub repository, choose "Web Service", set the b
 <details>
 <summary><b>Option: AWS EC2 (full stack on one VM)</b></summary>
 
-1. Launch an Ubuntu LTS instance; open ports 80, 443 and 22 (restrict 22 to your IP).
+1. Launch an Ubuntu LTS instance (the original used Ubuntu 22.04 on `t2.medium` for production; choose a current LTS and size it to your load). Open ports 80, 443 and 22 (restrict 22 to your IP).
 2. Install dependencies:
 
 ```bash
 sudo apt update && sudo apt upgrade -y
-# Install Node.js LTS (use the NodeSource instructions for the current LTS)
+# Install Node.js LTS (the original used setup_18.x, which is now end-of-life; use a current version)
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs
 sudo apt install -y postgresql postgresql-contrib nginx
 # Optional, only if Redis is enabled:
 # sudo apt install -y redis-server
@@ -1891,6 +2159,49 @@ jobs:
 
 A deploy job (for example a Render deploy hook and Vercel deployment) should be added only after tests exist and pass, and should depend on this job. Store tokens in GitHub repository secrets.
 
+<details>
+<summary><b>Deploy workflow example (original, updated)</b></summary>
+
+Add only after tests exist and pass. Store tokens as GitHub repository secrets.
+
+```yaml
+name: Deploy to Production
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: cd server && npm ci && npm test
+      - run: cd client && npm ci && npm test
+
+  deploy-backend:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
+
+  deploy-frontend:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+```
+
+Verify action versions against their current releases before use.
+</details>
+
 ### 🔧 Troubleshooting
 
 | Problem | Likely cause / fix |
@@ -1904,6 +2215,61 @@ A deploy job (for example a Render deploy hook and Vercel deployment) should be 
 | `.env` not loading | Confirm the file location and `KEY=value` format (no spaces around `=`); restart the server |
 | `redirect_uri_mismatch` | OAuth callback URL in the provider console must match `*_CALLBACK_URL` exactly (protocol, host, path, no stray slash) |
 | Prisma migration errors | Confirm the DB user can create schemas/tables; run `npx prisma migrate status` |
+
+<details>
+<summary><b>Troubleshooting commands (original notes)</b></summary>
+
+**Database**
+
+```bash
+sudo systemctl status postgresql
+sudo systemctl start postgresql
+psql -U postgres -h localhost
+```
+
+**Redis (only if enabled)**
+
+```bash
+redis-cli ping
+redis-server
+redis-cli CONFIG GET bind
+```
+
+**CORS**
+
+```javascript
+// server/src/app.js
+const cors = require('cors');
+app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
+```
+
+**Port already in use**
+
+```bash
+lsof -i :5000
+kill <PID>          # try a normal kill first; use -9 only as a last resort
+PORT=5001 npm run dev
+```
+
+**Build errors**
+
+```bash
+rm -rf node_modules package-lock.json
+npm install
+rm -rf dist
+npm run build
+```
+
+**Environment variables**
+
+```bash
+ls -la .env
+# KEY=value   (correct)
+# KEY = value (wrong: no spaces around =)
+```
+
+**OAuth `redirect_uri_mismatch`:** verify the callback URL in the provider console matches exactly, including protocol, host, path and trailing slashes, and update the `.env` value.
+</details>
 
 ---
 
@@ -2103,7 +2469,7 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 
 Whether you're preparing for:
 
-- 🎓 **Coding interviews**
+- 🎓 **Coding interviews** at FAANG companies
 - 🏆 **Competitive programming contests**
 - 📚 **Learning data structures & algorithms**
 - 🚀 **Personal skill development**
