@@ -1471,11 +1471,14 @@ Optional product decision: a **grace period / recovery mode** that forgives one 
 
 ```text
 Weakness detection:
-- Group problems by tag
-- Calculate success rate per tag (minimum sample size required)
-- Flag topics below the threshold
-- Generate a targeted practice list
+1. Group solved and attempted problems by topic/tag.
+2. Require a minimum sample size before evaluating a topic.
+3. Calculate success rate per tag.
+4. Flag topics below a configurable threshold (50% is an initial example, not a fixed rule).
+5. Recommend targeted practice at progressively suitable difficulty levels.
 ```
+
+The initial recommendation flow is deliberately explainable: analyze the user's available problem history, identify weak topics, find related problems at progressive difficulty, and suggest approximately 3–5 problems per day. Recommendations must reflect missing or incomplete platform data rather than treating it as a failed attempt.
 
 ### 🤖 Level 2: AI Assistance (📋 Planned)
 
@@ -1487,6 +1490,8 @@ Weakness detection:
 Study plan input:  current level, target (e.g. "Reach Expert on CF"), time/day, weak topics
 Study plan output: 30/60/90 day plan, daily problems, topic milestones
 ```
+
+A study plan should translate the user's target and available daily time into measurable topic milestones, then adjust recommendations as new activity arrives. It is a planning aid, not a guarantee of a rating or contest outcome.
 
 Considerations: only the minimum necessary user data should be sent to any external AI provider, with clear user consent and no secrets in prompts.
 
@@ -2390,15 +2395,23 @@ We welcome contributions from the community.
    ```
 
 3. **Make changes** — clean code, follow the existing style, add tests, update docs.
-4. **Commit**
+4. **Review and commit**
 
    ```bash
+   git status
+   git add .
    git commit -m "feat: add amazing feature"
    ```
 
    Format: `<type>: <description>` with types `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`.
 
-5. **Push** and open a Pull Request with a clear description, related issues, and screenshots for UI changes.
+5. **Push your branch**
+
+   ```bash
+   git push origin feature/amazing-feature
+   ```
+
+6. **Open a Pull Request** with a clear description, related issues, test results, and screenshots for UI changes. Confirm that the branch is up to date and that CI checks pass before requesting review.
 
 ### 📖 Guidelines
 
