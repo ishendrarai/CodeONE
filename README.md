@@ -2433,15 +2433,26 @@ Be respectful and inclusive, give constructive feedback, help others learn, and 
 
 ## 👥 21. Contributors
 
-Thanks to everyone who helps make CodeONE better. 🙏
+Meet the team behind CodeONE — **The Fantastic Five**! 🌟
+
+This project is created and maintained as a **Major Project** by our team:
+
+<p align="center">
+  <img src="./readme%20assets/fantastic-five-badge.jpg" alt="The Fantastic Five Logo" width="220" />
+</p>
+
+### 🛡️ The Fantastic Five
 
 <!-- ALL-CONTRIBUTORS-LIST:START -->
 
-| Avatar | Contributor | Role |
-|:------:|:-----------:|:----:|
-| [![Ishendra Rai](https://github.com/ishendrarai.png?size=100)](https://github.com/ishendrarai) | **Ishendra Rai** | Creator & Maintainer |
+| Avatar | Contributor | GitHub | Role |
+|:------:|:-----------:|:------:|:----:|
+| [![Ishendra Rai](https://github.com/ishendrarai.png?size=100)](https://github.com/ishendrarai) | **Ishendra Rai** | [@ishendrarai](https://github.com/ishendrarai) | Project Lead & Maintainer |
+| [![Anvesha Singh](https://github.com/Anveshaaa23.png?size=100)](https://github.com/Anveshaaa23) | **Anvesha Singh** | [@Anveshaaa23](https://github.com/Anveshaaa23) | Contributor |
+| [![Astha](https://github.com/astha0107.png?size=100)](https://github.com/astha0107) | **Astha** | [@astha0107](https://github.com/astha0107) | Contributor |
+| [![Ayush](https://github.com/ayucode12.png?size=100)](https://github.com/ayucode12) | **Ayush** | [@ayucode12](https://github.com/ayucode12) | Contributor |
+| [![Divyanshi Kulshrestha](https://github.com/divyanshi10.png?size=100)](https://github.com/divyanshi10) | **Divyanshi Kulshrestha** | [@divyanshi10](https://github.com/divyanshi10) | Contributor |
 
-<!-- Add more contributors here -->
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
 Want to see your name here? [Contribute to CodeONE!](#-20-contributing)
@@ -2456,7 +2467,7 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 
 ## 📬 23. Contact
 
-- **Email:** [ishurai.020805@email.com](mailto:ishurai.020805@email.com) <!-- TODO: confirm email address -->
+- **Email:** [ishurai.020805@email.com](mailto:ishurai.020805@gmail.com) <!-- TODO: confirm email address -->
 - **GitHub:** [@ishendrarai](https://github.com/ishendrarai)
 - **Twitter/X:** [@ishendrarai02](https://x.com/ishendrarai02)
 - **LinkedIn:** [Ishendra Rai](https://linkedin.com/in/ishendrarai)
@@ -2500,4 +2511,4 @@ CodeONE aims to help you stay consistent, track progress and build mastery.
 
 ---
 
-*Made with ❤️ by the CodeONE Team*
+*Made with ❤️ by The Fantastic Five*
