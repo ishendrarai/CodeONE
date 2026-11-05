@@ -2447,11 +2447,11 @@ This project is created and maintained as a **Major Project** by our team:
 
 | Avatar | Contributor | GitHub | Role |
 |:------:|:-----------:|:------:|:----:|
-| [![Ishendra Rai](https://github.com/ishendrarai.png?size=100)](https://github.com/ishendrarai) | **Ishendra Rai** | [@ishendrarai](https://github.com/ishendrarai) | Project Lead & Maintainer |
-| [![Anvesha Singh](https://github.com/Anveshaaa23.png?size=100)](https://github.com/Anveshaaa23) | **Anvesha Singh** | [@Anveshaaa23](https://github.com/Anveshaaa23) | Contributor |
-| [![Astha](https://github.com/astha0107.png?size=100)](https://github.com/astha0107) | **Astha** | [@astha0107](https://github.com/astha0107) | Contributor |
-| [![Ayush](https://github.com/ayucode12.png?size=100)](https://github.com/ayucode12) | **Ayush** | [@ayucode12](https://github.com/ayucode12) | Contributor |
-| [![Divyanshi Kulshrestha](https://github.com/divyanshi10.png?size=100)](https://github.com/divyanshi10) | **Divyanshi Kulshrestha** | [@divyanshi10](https://github.com/divyanshi10) | Contributor |
+| <a href="https://github.com/ishendrarai"><img src="https://github.com/ishendrarai.png" width="70" height="70" alt="Ishendra Rai" /></a> | **Ishendra Rai** | [@ishendrarai](https://github.com/ishendrarai) | Project Lead & Maintainer |
+| <a href="https://github.com/Anveshaaa23"><img src="https://github.com/Anveshaaa23.png" width="70" height="70" alt="Anvesha Singh" /></a> | **Anvesha Singh** | [@Anveshaaa23](https://github.com/Anveshaaa23) | Contributor |
+| <a href="https://github.com/astha0107"><img src="https://github.com/astha0107.png" width="70" height="70" alt="Astha" /></a> | **Astha** | [@astha0107](https://github.com/astha0107) | Contributor |
+| <a href="https://github.com/ayucode12"><img src="https://github.com/ayucode12.png" width="70" height="70" alt="Ayush" /></a> | **Ayush** | [@ayucode12](https://github.com/ayucode12) | Contributor |
+| <a href="https://github.com/divyanshi10"><img src="https://github.com/divyanshi10.png" width="70" height="70" alt="Divyanshi Kulshrestha" /></a> | **Divyanshi Kulshrestha** | [@divyanshi10](https://github.com/divyanshi10) | Contributor |
 
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
