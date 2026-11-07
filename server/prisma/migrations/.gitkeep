@@ -1,0 +1,3 @@
+# Prisma Migrations Directory
+# Responsibility: Stores deterministic, versioned SQL migrations generated via `npx prisma migrate dev`.
+

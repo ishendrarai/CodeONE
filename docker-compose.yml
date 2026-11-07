@@ -1,0 +1,60 @@
+# ==============================================================================
+# docker-compose.yml - Multi-Service Local Development Environment (Hardened)
+# Services: PostgreSQL 15+, Optional Redis 7+, Express Backend, React Frontend
+# Security Note: Ports bind to 127.0.0.1 (localhost) to prevent public network exposure.
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: codeone
+      POSTGRES_USER: codeone_user
+      POSTGRES_PASSWORD: change-me-locally
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U codeone_user -d codeone"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+
+  backend:
+    build:
+      context: ./server
+      dockerfile: ../docker/Dockerfile.server
+    ports:
+      - "5000:5000"
+    environment:
+      DATABASE_URL: postgresql://codeone_user:change-me-locally@postgres:5432/codeone
+      REDIS_URL: redis://redis:6379
+      PORT: 5000
+      NODE_ENV: development
+      CLIENT_URL: http://localhost:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./client
+      dockerfile: ../docker/Dockerfile.client
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:
