@@ -2438,7 +2438,7 @@ Meet the team behind CodeONE — **The Fantastic Five**! 🌟
 This project is created and maintained as a **Major Project** by our team:
 
 <p align="center">
-  <img src="./readme%20assets/fantastic-five-badge.jpg" alt="The Fantastic Five Logo" width="220" />
+  <img src="./readme_assets/fantastic-five-badge.jpg" alt="The Fantastic Five Logo" width="220" />
 </p>
 
 ### 🛡️ The Fantastic Five

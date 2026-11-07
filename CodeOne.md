@@ -14,10 +14,10 @@ tags:
 
 ## 👥 Team: The Fantastic Five (Major Project)
 
-- **Ishendra Rai** ([@ishendrarai](https://github.com/ishendrarai)) — Project Lead & Maintainer
+- **Divyanshi Kulshrestha** ([@divyanshi10](https://github.com/divyanshi10)) — Team Leader
 - **Anvesha Singh** ([@Anveshaaa23](https://github.com/Anveshaaa23)) — Contributor
 - **Astha** ([@astha0107](https://github.com/astha0107)) — Contributor
 - **Ayush** ([@ayucode12](https://github.com/ayucode12)) — Contributor
-- **Divyanshi Kulshrestha** ([@divyanshi10](https://github.com/divyanshi10)) — Contributor
+- **Ishendra Rai** ([@ishendrarai](https://github.com/ishendrarai)) — Maintainer
 
 
