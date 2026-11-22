@@ -1,220 +1,372 @@
-import { Code2, Flame, Calendar, Trophy, RefreshCw, Target, ExternalLink, Clock } from 'lucide-react';
-import StatsCard    from '../components/dashboard/StatsCard';
-import StreakHeatmap from '../components/dashboard/StreakHeatmap';
-import ProgressChart from '../components/dashboard/ProgressChart';
-import Badge from '../components/common/Badge';
-import Button from '../components/common/Button';
-import { useAuth } from '../context/AuthContext';
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import {
+  Code2,
+  Flame,
+  Calendar,
+  Trophy,
+  RefreshCw,
+  Target,
+  ExternalLink,
+  Clock,
+  ArrowRight,
+  CheckCircle,
+  AlertCircle,
+  Zap,
+} from 'lucide-react';
+import Card from '../components/ui/Card';
+import Badge from '../components/ui/Badge';
+import Button from '../components/ui/Button';
+import ProgressRing from '../components/ui/ProgressRing';
+import Heatmap from '../components/charts/Heatmap';
+import RatingChart from '../components/charts/RatingChart';
+import DifficultyChart from '../components/charts/DifficultyChart';
+import TopicBars from '../components/charts/TopicBars';
+import { useCountdown } from '../hooks/useCountdown';
+import { useCountUp } from '../hooks/useCountUp';
+import { fetchDashboardSummary } from '../data/mockService';
+import { DEMO_USER } from '../data/mockUser';
+import { formatTimeAgo, getVerdictBadgeClass } from '../lib/format';
 
-// ─── Mock data ────────────────────────────────────────────────
-const STATS = [
-  { label: 'Problems Solved',  value: '842',   sub: 'All time',          trend: 12,  icon: Code2,  color: '#5145E5' },
-  { label: 'Current Streak',   value: '14d',   sub: 'Personal best: 31d', trend: 0,  icon: Flame,  color: '#D97706' },
-  { label: 'This Week',        value: '23',    sub: 'Goal: 25 / week',    trend: -8,  icon: Calendar, color: '#16A34A' },
-  { label: 'Global Rank',      value: '#1,204', sub: 'Top 8%',            trend: 5,  icon: Trophy, color: '#5145E5' },
-];
-
-const RECENT_PROBLEMS = [
-  { id: 1, name: 'Two Sum',                platform: 'leetcode',   difficulty: 'easy',   time: '2h ago'  },
-  { id: 2, name: 'Longest Palindrome',     platform: 'codeforces', difficulty: 'medium', time: '5h ago'  },
-  { id: 3, name: 'Binary Tree Level Order',platform: 'leetcode',   difficulty: 'medium', time: '1d ago'  },
-  { id: 4, name: 'Maximum Subarray',       platform: 'codechef',   difficulty: 'easy',   time: '1d ago'  },
-  { id: 5, name: 'Trapping Rain Water',    platform: 'leetcode',   difficulty: 'hard',   time: '2d ago'  },
-];
-
-const PLATFORMS = [
-  { name: 'LeetCode',   key: 'leetcode',   rating: 1842, rank: '#12,440', delta: '+38', connected: true  },
-  { name: 'Codeforces', key: 'codeforces', rating: 1621, rank: '#44,201', delta: '+80', connected: true  },
-  { name: 'CodeChef',   key: 'codechef',   rating: 1704, rank: '#8,994',  delta: '-12', connected: true  },
-  { name: 'AtCoder',    key: 'atcoder',    rating: null,  rank: null,      delta: null,  connected: false },
-];
-
-const TOPICS = [
-  { topic: 'Arrays & Hashing',   solved: 95,  total: 110 },
-  { topic: 'Dynamic Programming', solved: 42,  total: 80  },
-  { topic: 'Graphs',              solved: 28,  total: 70  },
-  { topic: 'Trees & BST',         solved: 60,  total: 72  },
-  { topic: 'Binary Search',       solved: 34,  total: 45  },
-  { topic: 'Greedy',              solved: 20,  total: 50  },
-];
-
-const UPCOMING_CONTESTS = [
-  { id: 1, platform: 'codeforces', name: 'Codeforces Round #970',  startsIn: '4h 20m', duration: '2h'    },
-  { id: 2, platform: 'leetcode',   name: 'LC Weekly Contest 418',   startsIn: '2d 6h',  duration: '1.5h'  },
-  { id: 3, platform: 'codechef',   name: 'CodeChef Starters 157',   startsIn: '3d 12h', duration: '3h'    },
-];
-
-const PLATFORM_COLORS = {
-  leetcode: '#FFA116', codeforces: '#1890FF', codechef: '#5B4638', atcoder: '#B22222',
-};
-
-// ─── Helpers ──────────────────────────────────────────────────
-function getGreeting() {
-  const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 17) return 'Good afternoon';
-  return 'Good evening';
-}
-
-function PlatformDot({ platform }) {
-  return (
-    <span
-      className="w-2 h-2 rounded-full shrink-0"
-      style={{ background: PLATFORM_COLORS[platform] || '#747B8C' }}
-    />
-  );
-}
-
-// ─── Dashboard ────────────────────────────────────────────────
 export default function Dashboard() {
-  const { user } = useAuth();
-  const firstName = user?.name?.split(' ')[0] ?? 'Coder';
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [syncingPlatform, setSyncingPlatform] = useState(null);
+
+  useEffect(() => {
+    fetchDashboardSummary().then((res) => {
+      setData(res);
+      setLoading(false);
+    });
+  }, []);
+
+  const nextContestTime = data?.upcomingContests?.[0]?.startTime;
+  const countdown = useCountdown(nextContestTime);
+
+  const solvedCount = useCountUp(data?.stats?.totalSolved || 979, 700);
+  const streakDays = useCountUp(data?.stats?.currentStreak || 19, 700);
+  const cfRating = useCountUp(1782, 700);
+
+  const handleSyncPlatform = (platformId) => {
+    setSyncingPlatform(platformId);
+    setTimeout(() => {
+      setSyncingPlatform(null);
+    }, 1000);
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-8 w-48 bg-[#EDEDEA] rounded animate-pulse" />
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-28 bg-white border border-app-border rounded-card animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="page-container">
-
-      {/* ── Page header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+    <div className="space-y-8">
+      {/* ─── Top Header & Greeting ─── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-text-primary">
-            {getGreeting()}, {firstName} 👋
-          </h1>
-          <p className="text-sm text-text-secondary mt-0.5">
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold tracking-tight text-ink">
+              Welcome back, {DEMO_USER.name} 👋
+            </h1>
+            <Badge variant="accent" size="xs">
+              Candidate Master
+            </Badge>
+          </div>
+          <p className="text-xs text-ink-secondary mt-0.5">
+            Synchronized CP intelligence across Codeforces and AtCoder • 19-day active streak
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" size="sm" leftIcon={<RefreshCw size={13} />}>
-            Sync All
-          </Button>
-          <Button variant="primary" size="sm" leftIcon={<Target size={13} />}>
-            New Goal
-          </Button>
+
+        <div className="flex items-center gap-2">
+          <Link to="/coach">
+            <Button variant="secondary" size="sm" leftIcon={<Zap size={13} className="text-accent" />}>
+              Ask AI Coach
+            </Button>
+          </Link>
+          <Link to="/goals">
+            <Button variant="primary" size="sm" leftIcon={<Target size={13} />}>
+              Set Target
+            </Button>
+          </Link>
         </div>
       </div>
 
-      {/* ── Stats row ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-        {STATS.map((s) => (
-          <StatsCard
-            key={s.label}
-            label={s.label}
-            value={s.value}
-            sub={s.sub}
-            trend={s.trend}
-            icon={s.icon}
-            accentColor={s.color}
-          />
-        ))}
-      </div>
-
-      {/* ── Heatmap ── */}
-      <div className="mb-5">
-        <StreakHeatmap />
-      </div>
-
-      {/* ── Middle row ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-
-        {/* Recent solved */}
-        <div className="card">
-          <div className="section-header px-4 pt-4">
-            <h3 className="text-sm font-semibold text-text-primary">Recent Solved</h3>
-            <a href="/problems" className="text-xs text-accent hover:underline">View all</a>
-          </div>
-          <div className="divide-y divide-border">
-            {RECENT_PROBLEMS.map((p) => (
-              <div key={p.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-surface-raised transition-colors">
-                <div className="flex items-center gap-2 min-w-0">
-                  <PlatformDot platform={p.platform} />
-                  <span className="text-sm text-text-primary truncate">{p.name}</span>
-                </div>
-                <div className="flex items-center gap-2 shrink-0 ml-2">
-                  <Badge variant={p.difficulty}>{p.difficulty}</Badge>
-                  <span className="text-xs text-text-muted flex items-center gap-1">
-                    <Clock size={10} />{p.time}
-                  </span>
-                </div>
+      {/* ─── "Today" Focus Banner ─── */}
+      <Card className="p-5 bg-gradient-to-r from-white via-white to-blue-50/40 border-app-border">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+          {/* Daily Goal Ring */}
+          <div className="flex items-center gap-4">
+            <ProgressRing progress={100} size={54} strokeWidth={5}>
+              <span className="font-mono text-xs font-bold text-ink">2/2</span>
+            </ProgressRing>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-semibold text-ink">Daily Goal Met</span>
+                <CheckCircle size={13} className="text-verdict-ac" />
               </div>
-            ))}
+              <p className="text-[11px] text-ink-secondary mt-0.5">2 Accepted submissions logged today</p>
+            </div>
+          </div>
+
+          {/* Current Streak Status */}
+          <div className="flex items-center gap-3.5 md:border-x md:border-app-border md:px-6">
+            <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 shrink-0">
+              <Flame size={20} className="fill-amber-500" />
+            </div>
+            <div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-mono text-lg font-bold text-ink">19 Days</span>
+                <span className="text-[10px] font-mono text-ink-muted">(Best: 42d)</span>
+              </div>
+              <p className="text-[11px] text-ink-secondary mt-0.5">Next milestone: 21 Days (3 wks)</p>
+            </div>
+          </div>
+
+          {/* Next Contest Live Ticking Countdown */}
+          <div className="flex items-center justify-between md:pl-2">
+            <div>
+              <p className="mono-label">Next Live Contest</p>
+              <p className="text-xs font-bold text-ink truncate mt-0.5 max-w-[180px]">
+                {data.upcomingContests?.[0]?.title}
+              </p>
+              <p className="text-[10px] font-mono text-verdict-ac font-semibold">Registered</p>
+            </div>
+            <div className="text-right font-mono bg-white border border-app-border px-3 py-1.5 rounded-lg shadow-sm">
+              <div className="text-sm font-bold text-accent tabular">
+                {countdown.hours}h {countdown.minutes}m {countdown.seconds}s
+              </div>
+              <div className="text-[9px] uppercase tracking-wider text-ink-muted">Ticking Live</div>
+            </div>
           </div>
         </div>
+      </Card>
 
-        {/* Platform performance */}
-        <div className="card">
-          <div className="section-header px-4 pt-4">
-            <h3 className="text-sm font-semibold text-text-primary">Platform Performance</h3>
-            <a href="/profile" className="text-xs text-accent hover:underline">Manage</a>
+      {/* ─── Four Key Stat Cards (Count-Up Numbers) ─── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="mono-label">Total Solved</span>
+            <Code2 size={15} className="text-ink-muted" />
           </div>
-          <div className="divide-y divide-border">
-            {PLATFORMS.map((p) => (
-              <div key={p.key} className="flex items-center justify-between px-4 py-2.5">
-                <div className="flex items-center gap-2">
-                  <PlatformDot platform={p.key} />
-                  <div>
-                    <p className="text-sm font-medium text-text-primary">{p.name}</p>
+          <div className="flex items-baseline gap-2">
+            <span className="font-mono text-2xl font-bold text-ink tabular">{solvedCount}</span>
+            <span className="text-xs font-mono text-verdict-ac font-semibold">+14 this wk</span>
+          </div>
+          <p className="text-[11px] text-ink-muted mt-1">Across CF (684) & AtCoder (295)</p>
+        </Card>
+
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="mono-label">Active Streak</span>
+            <Flame size={15} className="text-amber-500 fill-amber-500" />
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="font-mono text-2xl font-bold text-ink tabular">{streakDays}d</span>
+            <span className="text-xs font-mono text-ink-muted">214 active / 365d</span>
+          </div>
+          <p className="text-[11px] text-ink-muted mt-1">Single-hue timezone engine</p>
+        </Card>
+
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="mono-label">Codeforces Rating</span>
+            <Trophy size={15} className="text-[#1890FF]" />
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="font-mono text-2xl font-bold text-[#1890FF] tabular">{cfRating}</span>
+            <span className="text-xs font-mono text-ink-muted">Peak: 1,845</span>
+          </div>
+          <p className="text-[11px] text-ink-muted mt-1">Candidate Master candidate</p>
+        </Card>
+
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="mono-label">Global Percentile</span>
+            <span className="w-2 h-2 rounded-full bg-verdict-ac" />
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="font-mono text-2xl font-bold text-ink tabular">Top 1.6%</span>
+            <span className="text-xs font-mono text-ink-muted">#1,204</span>
+          </div>
+          <p className="text-[11px] text-ink-muted mt-1">Based on active CF competitors</p>
+        </Card>
+      </div>
+
+      {/* ─── 365-Day Single-Hue Heatmap Section ─── */}
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-sm font-semibold text-ink">365-Day Activity Heatmap</h2>
+            <p className="text-xs text-ink-secondary mt-0.5">
+              Consolidated Accepted submissions across all verified platforms
+            </p>
+          </div>
+          <Badge variant="neutral" size="xs">
+            Past 12 Months
+          </Badge>
+        </div>
+
+        <Heatmap data={data.heatmap} />
+      </Card>
+
+      {/* ─── Charts Row: Rating Progression & Difficulty Distribution ─── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Rating Progression Line Chart */}
+        <Card className="p-6 lg:col-span-2">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-ink">Rating Trajectory</h2>
+              <p className="text-xs text-ink-secondary mt-0.5">
+                Official contest rating changes with 1900 CM milestone threshold
+              </p>
+            </div>
+            <Badge variant="codeforces" size="xs">
+              Codeforces & AtCoder
+            </Badge>
+          </div>
+
+          <RatingChart />
+        </Card>
+
+        {/* Difficulty Distribution Donut */}
+        <Card className="p-6">
+          <div className="mb-4">
+            <h2 className="text-sm font-semibold text-ink">Problem Difficulty</h2>
+            <p className="text-xs text-ink-secondary mt-0.5">Verified solved distribution</p>
+          </div>
+
+          <DifficultyChart />
+        </Card>
+      </div>
+
+      {/* ─── Topic Strength & Weakness Diagnosis ─── */}
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-sm font-semibold text-ink">Algorithmic Topic Mastery</h2>
+            <p className="text-xs text-ink-secondary mt-0.5">
+              Rule-based weakness diagnostic flagging sub-50% accuracy areas
+            </p>
+          </div>
+          <Link to="/problems?tab=recommended" className="text-xs font-semibold text-accent hover:underline flex items-center gap-1">
+            <span>Recommended Sets</span>
+            <ArrowRight size={12} />
+          </Link>
+        </div>
+
+        <TopicBars topics={data.topics} />
+      </Card>
+
+      {/* ─── Bottom Row: Recent Submissions & Connected Platforms ─── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Recent Submissions Table */}
+        <Card className="p-6 lg:col-span-2">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-ink">Recent Submissions</h2>
+            <Link to="/problems" className="text-xs font-mono text-accent hover:underline">
+              View All ({data.stats.totalSolved}) →
+            </Link>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-mono">
+              <thead>
+                <tr className="border-b border-app-border text-ink-muted text-[10px] uppercase">
+                  <th className="pb-2 font-medium">Problem</th>
+                  <th className="pb-2 font-medium">Platform</th>
+                  <th className="pb-2 font-medium">Verdict</th>
+                  <th className="pb-2 font-medium">Rating</th>
+                  <th className="pb-2 font-medium">Lang</th>
+                  <th className="pb-2 font-medium text-right">Time</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-app-border">
+                {data.recentSubmissions.map((sub) => (
+                  <tr key={sub.id} className="hover:bg-app-bg transition-colors">
+                    <td className="py-2.5 font-medium text-ink max-w-[200px] truncate">
+                      {sub.problemTitle}
+                    </td>
+                    <td className="py-2.5">
+                      <span className="capitalize text-ink-secondary">{sub.platform}</span>
+                    </td>
+                    <td className="py-2.5">
+                      <span className={`px-1.5 py-0.5 rounded border text-[10px] font-bold ${getVerdictBadgeClass(sub.verdict)}`}>
+                        {sub.verdict}
+                      </span>
+                    </td>
+                    <td className="py-2.5 text-ink-secondary">{sub.rating}</td>
+                    <td className="py-2.5 text-ink-muted">{sub.language}</td>
+                    <td className="py-2.5 text-right text-ink-muted">
+                      {formatTimeAgo(sub.timestamp)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+
+        {/* Connected Platforms Sync Cards */}
+        <Card className="p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-ink">Connected Platforms</h2>
+            <Link to="/settings" className="text-xs text-accent hover:underline">
+              Manage
+            </Link>
+          </div>
+
+          <div className="space-y-3">
+            {DEMO_USER.platforms.map((p) => {
+              const isSyncing = syncingPlatform === p.id;
+              return (
+                <div
+                  key={p.id}
+                  className="p-3 rounded-xl border border-app-border bg-app-bg flex items-center justify-between"
+                >
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
+                      <span className="text-xs font-bold text-ink">{p.name}</span>
+                      {p.connected && (
+                        <span className="text-[10px] font-mono text-verdict-ac font-semibold">
+                          Verified
+                        </span>
+                      )}
+                    </div>
                     {p.connected ? (
-                      <p className="text-xs text-text-muted">{p.rank}</p>
+                      <p className="text-[11px] font-mono text-ink-secondary">
+                        @{p.handle} • Rating: {p.rating}
+                      </p>
                     ) : (
-                      <p className="text-xs text-text-muted">Not connected</p>
+                      <p className="text-[10px] font-mono text-ink-muted">{p.statusNote}</p>
                     )}
                   </div>
+
+                  {p.connected && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => handleSyncPlatform(p.id)}
+                      disabled={isSyncing}
+                      className="h-6 px-2 text-[10px]"
+                    >
+                      <RefreshCw size={10} className={isSyncing ? 'animate-spin text-accent' : ''} />
+                    </Button>
+                  )}
                 </div>
-                {p.connected ? (
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-text-primary">{p.rating}</p>
-                    <p className={`text-xs font-medium ${p.delta?.startsWith('+') ? 'text-status-easy' : 'text-status-hard'}`}>
-                      {p.delta}
-                    </p>
-                  </div>
-                ) : (
-                  <Button variant="accent_light" size="xs" rightIcon={<ExternalLink size={11} />}>
-                    Connect
-                  </Button>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
-        </div>
-      </div>
-
-      {/* ── Bottom row ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-        {/* Topic mastery */}
-        <div className="card p-4">
-          <div className="section-header">
-            <h3 className="text-sm font-semibold text-text-primary">Topic Mastery</h3>
-            <a href="/analytics" className="text-xs text-accent hover:underline">Full report</a>
-          </div>
-          <ProgressChart data={TOPICS} />
-        </div>
-
-        {/* Upcoming contests */}
-        <div className="card p-4">
-          <div className="section-header">
-            <h3 className="text-sm font-semibold text-text-primary">Upcoming Contests</h3>
-            <a href="/contests" className="text-xs text-accent hover:underline">View all</a>
-          </div>
-          <div className="flex flex-col gap-2.5">
-            {UPCOMING_CONTESTS.map((c) => (
-              <div key={c.id} className="flex items-start justify-between p-3 bg-surface-raised rounded-md border border-border">
-                <div className="flex items-start gap-2">
-                  <PlatformDot platform={c.platform} />
-                  <div>
-                    <p className="text-sm font-medium text-text-primary">{c.name}</p>
-                    <p className="text-xs text-text-muted mt-0.5">
-                      Starts in <span className="text-accent font-medium">{c.startsIn}</span> · {c.duration}
-                    </p>
-                  </div>
-                </div>
-                <Button variant="ghost" size="xs" rightIcon={<ExternalLink size={11} />}>
-                  Register
-                </Button>
-              </div>
-            ))}
-          </div>
-        </div>
+        </Card>
       </div>
     </div>
   );
