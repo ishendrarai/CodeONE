@@ -1,89 +1,63 @@
-/**
- * src/context/AuthContext.jsx
- * Layer: Frontend / Context (Client State)
- * Responsibility: Lightweight global authentication state managing:
- *                 - In-memory JWT access token (never stored in localStorage)
- *                 - Current user profile state
- *                 - Silent initial session restore via HttpOnly refresh cookie on application mount
- * Interaction: Injected at root of App.jsx; consumed via useAuth() hook.
- */
-
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { loginUser, registerUser, logoutUser, refreshSession } from '../services/authService';
-import { getCurrentUserProfile } from '../services/userService';
-import { setAccessToken } from '../services/api';
+import { DEMO_USER } from '../data/mockUser';
 
 export const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  // Silent session restore on application mount
-  useEffect(() => {
-    let isMounted = true;
-
-    async function restoreSession() {
+  const [user, setUser] = useState(() => {
+    const saved = localStorage.getItem('codeone_demo_user');
+    if (saved) {
       try {
-        const refreshData = await refreshSession();
-        if (refreshData?.accessToken && isMounted) {
-          const profile = await getCurrentUserProfile();
-          if (isMounted) setUser(profile);
-        }
-      } catch (err) {
-        // Unauthenticated visitor or expired session; clean state
-        setAccessToken(null);
-        if (isMounted) setUser(null);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
+        return JSON.parse(saved);
+      } catch (e) {}
     }
+    return DEMO_USER; // Default to demo user for seamless presentation demo!
+  });
+  const [loading, setLoading] = useState(false);
 
-    restoreSession();
-
-    function handleSessionExpired() {
-      setUser(null);
-      setAccessToken(null);
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem('codeone_demo_user', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('codeone_demo_user');
     }
-
-    window.addEventListener('auth:session-expired', handleSessionExpired);
-    return () => {
-      isMounted = false;
-      window.removeEventListener('auth:session-expired', handleSessionExpired);
-    };
-  }, []);
+  }, [user]);
 
   const login = useCallback(async (credentials) => {
     setLoading(true);
     try {
-      const authData = await loginUser(credentials);
-      setUser(authData.user);
-      return { success: true };
+      const demoUser = { ...DEMO_USER, email: credentials.email };
+      setUser(demoUser);
+      return { success: true, user: demoUser };
     } finally {
       setLoading(false);
     }
   }, []);
 
+  const loginAsDemo = useCallback(() => {
+    setUser({ ...DEMO_USER });
+    return { success: true, user: DEMO_USER };
+  }, []);
+
   const register = useCallback(async (userData) => {
     setLoading(true);
     try {
-      const authData = await registerUser(userData);
-      setUser(authData.user);
-      return { success: true };
+      const newUser = {
+        ...DEMO_USER,
+        name: userData.name || DEMO_USER.name,
+        handle: userData.handle || DEMO_USER.handle,
+        email: userData.email || DEMO_USER.email,
+      };
+      setUser(newUser);
+      return { success: true, user: newUser };
     } finally {
       setLoading(false);
     }
   }, []);
 
   const logout = useCallback(async () => {
-    setLoading(true);
-    try {
-      await logoutUser();
-    } finally {
-      setUser(null);
-      setAccessToken(null);
-      setLoading(false);
-    }
+    setUser(null);
+    localStorage.removeItem('codeone_demo_user');
   }, []);
 
   const value = {
@@ -91,6 +65,7 @@ export function AuthProvider({ children }) {
     loading,
     isAuthenticated: !!user,
     login,
+    loginAsDemo,
     register,
     logout,
   };

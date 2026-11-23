@@ -1,0 +1,16 @@
+:root {
+  --bg-app: #FAFAF8;
+  --bg-surface: #FFFFFF;
+  --border-subtle: #E5E5E0;
+  --border-strong: #D4D4CE;
+  --text-ink: #0B0B0F;
+  --text-secondary: #52525B;
+  --text-muted: #8E8E93;
+  --accent: #0052FF;
+  --accent-hover: #0043D6;
+  --accent-subtle: #EFF4FF;
+  --accent-border: #BFDBFE;
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}

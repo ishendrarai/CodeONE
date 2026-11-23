@@ -1,141 +1,265 @@
-import { useState } from 'react';
-import { ExternalLink, RefreshCw, Clock, Calendar as CalIcon } from 'lucide-react';
-import Button from '../components/common/Button';
-import Badge from '../components/common/Badge';
-import { clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-
-function cn(...inputs) { return twMerge(clsx(inputs)); }
-
-// ─── Mock data ────────────────────────────────────────────────
-const CONTESTS = [
-  { id:1, platform:'codeforces', name:'Codeforces Round #970 (Div. 2)', date:'Nov 5, 2026',  time:'20:35 IST', duration:'2h',   startsIn:'4h 20m', registered:false, difficulty:'Div. 2' },
-  { id:2, platform:'leetcode',   name:'LeetCode Weekly Contest 418',    date:'Nov 10, 2026', time:'08:00 IST', duration:'1.5h', startsIn:'2d 6h',  registered:true,  difficulty:'Open'   },
-  { id:3, platform:'codechef',   name:'CodeChef Starters 157',          date:'Nov 13, 2026', time:'21:00 IST', duration:'3h',   startsIn:'3d 12h', registered:false, difficulty:'Div. 1-4' },
-  { id:4, platform:'codeforces', name:'Codeforces Round #971 (Div. 1)', date:'Nov 15, 2026', time:'17:35 IST', duration:'2.5h', startsIn:'5d 2h',  registered:false, difficulty:'Div. 1' },
-  { id:5, platform:'atcoder',    name:'AtCoder Regular Contest 189',    date:'Nov 16, 2026', time:'21:00 IST', duration:'2h',   startsIn:'6d',     registered:false, difficulty:'ARC'    },
-];
-
-const PLATFORM_OPTIONS = ['All', 'LeetCode', 'Codeforces', 'CodeChef', 'AtCoder'];
-
-const PLATFORM_COLORS = {
-  leetcode: '#FFA116', codeforces: '#1890FF', codechef: '#5B4638', atcoder: '#B22222',
-};
-
-const PLATFORM_BG = {
-  leetcode: 'bg-orange-50', codeforces: 'bg-blue-50', codechef: 'bg-amber-50', atcoder: 'bg-red-50',
-};
-
-function PlatformDot({ platform }) {
-  return <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: PLATFORM_COLORS[platform] || '#747B8C' }} />;
-}
+import React, { useState, useEffect } from 'react';
+import {
+  Calendar as CalendarIcon,
+  List,
+  Clock,
+  Bell,
+  BellRing,
+  ExternalLink,
+  Plus,
+  Check,
+  Globe,
+} from 'lucide-react';
+import Card from '../components/ui/Card';
+import Badge from '../components/ui/Badge';
+import Button from '../components/ui/Button';
+import { useCountdown } from '../hooks/useCountdown';
+import { fetchContests } from '../data/mockService';
+import { format } from 'date-fns';
 
 export default function Contests() {
-  const [platformFilter, setPlatform] = useState('All');
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'calendar'
+  const [useUTC, setUseUTC] = useState(false);
+  const [platformFilter, setPlatformFilter] = useState('all');
+  const [contests, setContests] = useState([]);
+  const [reminders, setReminders] = useState({});
 
-  const filtered = CONTESTS.filter((c) =>
-    platformFilter === 'All' || c.platform === platformFilter.toLowerCase().replace(' ', '')
-  );
+  useEffect(() => {
+    fetchContests().then((res) => setContests(res));
+  }, []);
+
+  const nextUpcoming = contests.find((c) => c.status === 'upcoming');
+  const countdown = useCountdown(nextUpcoming?.startTime);
+
+  const toggleReminder = (id) => {
+    setReminders((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const filteredContests = contests.filter((c) => {
+    if (platformFilter !== 'all' && c.platform !== platformFilter) return false;
+    return true;
+  });
+
+  const formatContestTime = (isoString) => {
+    const d = new Date(isoString);
+    if (useUTC) {
+      return format(d, 'MMM d, yyyy • HH:mm') + ' UTC';
+    }
+    return format(d, 'MMM d, yyyy • hh:mm a') + ' IST';
+  };
 
   return (
-    <div className="page-container">
-
-      {/* ── Page header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+    <div className="space-y-6">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-text-primary">Contest Calendar</h1>
-          <p className="text-sm text-text-secondary mt-0.5">Discover and track upcoming competitive programming contests</p>
+          <h1 className="text-xl font-bold tracking-tight text-ink">Contest Calendar</h1>
+          <p className="text-xs text-ink-secondary mt-0.5">
+            Aggregated schedule of upcoming competitive rounds across major CP platforms.
+          </p>
         </div>
-        <Button variant="secondary" size="sm" leftIcon={<RefreshCw size={13} />}>
-          Sync Calendar
-        </Button>
+
+        {/* View Mode & Timezone Switcher */}
+        <div className="flex items-center gap-2">
+          {/* UTC Toggle */}
+          <button
+            onClick={() => setUseUTC(!useUTC)}
+            className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-app-border bg-white text-xs font-mono text-ink-secondary hover:text-ink transition-colors"
+          >
+            <Globe size={13} />
+            <span>{useUTC ? 'UTC Time' : 'Local (IST)'}</span>
+          </button>
+
+          {/* List / Calendar Toggle */}
+          <div className="flex items-center bg-white border border-app-border rounded-lg p-0.5 shadow-sm">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`p-1.5 rounded text-xs font-medium transition-colors ${
+                viewMode === 'list' ? 'bg-ink text-white' : 'text-ink-secondary hover:text-ink'
+              }`}
+            >
+              <List size={14} />
+            </button>
+            <button
+              onClick={() => setViewMode('calendar')}
+              className={`p-1.5 rounded text-xs font-medium transition-colors ${
+                viewMode === 'calendar' ? 'bg-ink text-white' : 'text-ink-secondary hover:text-ink'
+              }`}
+            >
+              <CalendarIcon size={14} />
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* ── Platform filter pills ── */}
-      <div className="flex flex-wrap gap-2 mb-5">
-        {PLATFORM_OPTIONS.map((p) => (
+      {/* Featured Next Contest Countdown Banner */}
+      {nextUpcoming && (
+        <Card className="p-6 bg-gradient-to-r from-blue-50/50 via-white to-white border-accent-border">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <Badge variant="accent" size="xs">
+                Next Upcoming Match
+              </Badge>
+              <h2 className="text-base font-bold text-ink">{nextUpcoming.title}</h2>
+              <p className="text-xs font-mono text-ink-secondary">
+                Starts {formatContestTime(nextUpcoming.startTime)} • Duration: {nextUpcoming.durationLabel}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <div className="text-right font-mono">
+                <span className="mono-label">Starts in</span>
+                <div className="text-xl font-bold text-accent tabular">
+                  {countdown.hours}h {countdown.minutes}m {countdown.seconds}s
+                </div>
+              </div>
+
+              <a href={nextUpcoming.url} target="_blank" rel="noopener noreferrer">
+                <Button variant="primary" size="sm" rightIcon={<ExternalLink size={12} />}>
+                  Register Now
+                </Button>
+              </a>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Filter Chips Bar */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        {['all', 'codeforces', 'atcoder'].map((p) => (
           <button
             key={p}
-            onClick={() => setPlatform(p)}
-            className={cn(
-              'h-7 px-3 rounded-full text-xs font-medium transition-all duration-100',
+            onClick={() => setPlatformFilter(p)}
+            className={`h-7 px-3 rounded-full text-xs font-mono capitalize transition-all ${
               platformFilter === p
-                ? 'bg-accent text-white'
-                : 'bg-surface border border-border text-text-secondary hover:bg-surface-overlay'
-            )}
+                ? 'bg-ink text-white font-semibold'
+                : 'bg-white border border-app-border text-ink-secondary hover:border-app-border-strong hover:text-ink'
+            }`}
           >
-            {p}
+            {p === 'all' ? 'All Platforms' : p}
           </button>
         ))}
       </div>
 
-      {/* ── Contest list ── */}
-      <div className="flex flex-col gap-3">
-        {filtered.length === 0 && (
-          <div className="card py-16 text-center text-sm text-text-muted">
-            No contests found for the selected platform.
-          </div>
-        )}
+      {/* Contests List */}
+      {viewMode === 'list' ? (
+        <div className="space-y-3">
+          {filteredContests.map((c) => {
+            const isRegistered = c.registered;
+            const hasReminder = reminders[c.id];
+            return (
+              <Card key={c.id} className="p-4 hover:border-app-border-strong transition-all">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  {/* Left Metadata */}
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full"
+                        style={{ backgroundColor: c.platform === 'codeforces' ? '#1890FF' : '#00C0C0' }}
+                      />
+                      <h3 className="text-xs font-bold text-ink">{c.title}</h3>
+                      <Badge
+                        variant={c.status === 'upcoming' ? 'accent' : 'neutral'}
+                        size="xs"
+                      >
+                        {c.status.toUpperCase()}
+                      </Badge>
+                      {c.division && (
+                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-app-bg border border-app-border text-ink-muted">
+                          {c.division}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-4 text-[11px] font-mono text-ink-secondary">
+                      <span>{formatContestTime(c.startTime)}</span>
+                      <span>•</span>
+                      <span>Duration: {c.durationLabel}</span>
+                      {c.status === 'ended' && c.ratingChange && (
+                        <>
+                          <span>•</span>
+                          <span className={`font-bold ${c.ratingChange.startsWith('+') ? 'text-verdict-ac' : 'text-verdict-wa'}`}>
+                            Delta: {c.ratingChange}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
 
-        {filtered.map((c) => (
-          <div key={c.id} className={cn('card p-4 hover:shadow-card-hover transition-shadow')}>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  {/* Right Actions */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {c.status === 'upcoming' && (
+                      <button
+                        onClick={() => toggleReminder(c.id)}
+                        className={`p-2 rounded-lg border transition-colors ${
+                          hasReminder
+                            ? 'bg-accent-subtle border-accent-border text-accent'
+                            : 'border-app-border text-ink-muted hover:text-ink hover:bg-app-hover'
+                        }`}
+                        title="Toggle reminder"
+                      >
+                        {hasReminder ? <BellRing size={14} /> : <Bell size={14} />}
+                      </button>
+                    )}
 
-              {/* Left: info */}
-              <div className="flex items-start gap-3">
-                {/* Platform dot + color stripe */}
-                <div
-                  className={cn(
-                    'w-9 h-9 rounded-lg flex items-center justify-center shrink-0',
-                    PLATFORM_BG[c.platform]
-                  )}
-                >
-                  <PlatformDot platform={c.platform} />
-                </div>
-
-                <div>
-                  <h3 className="text-sm font-semibold text-text-primary leading-snug">{c.name}</h3>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
-                    <span className="flex items-center gap-1 text-xs text-text-muted">
-                      <CalIcon size={11} /> {c.date} · {c.time}
-                    </span>
-                    <span className="flex items-center gap-1 text-xs text-text-muted">
-                      <Clock size={11} /> {c.duration}
-                    </span>
-                    <Badge variant="default" className="text-2xs">{c.difficulty}</Badge>
+                    <a
+                      href={c.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-app-border bg-white text-xs font-mono font-medium text-ink hover:bg-app-hover transition-colors shadow-sm"
+                    >
+                      <span>{c.status === 'ended' ? 'View Standings' : 'Contest Link'}</span>
+                      <ExternalLink size={12} className="text-ink-muted" />
+                    </a>
                   </div>
                 </div>
-              </div>
-
-              {/* Right: countdown + actions */}
-              <div className="flex items-center gap-3 sm:flex-col sm:items-end">
-                <div className="text-right">
-                  <p className="text-xs text-text-muted">Starts in</p>
-                  <p className="text-sm font-semibold text-accent">{c.startsIn}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {c.registered ? (
-                    <Badge variant="solved" dot>Registered</Badge>
-                  ) : (
-                    <Button
-                      variant="primary"
-                      size="xs"
-                      rightIcon={<ExternalLink size={11} />}
-                    >
-                      Register
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
+              </Card>
+            );
+          })}
+        </div>
+      ) : (
+        /* Month Calendar View */
+        <Card className="p-6 bg-white">
+          <div className="flex items-center justify-between mb-4 pb-2 border-b border-app-border">
+            <span className="text-xs font-bold text-ink">November 2024 Schedule</span>
+            <span className="font-mono text-xs text-ink-muted">4 Rounds Scheduled</span>
           </div>
-        ))}
-      </div>
 
-      {/* ── Info note ── */}
-      <p className="text-xs text-text-muted mt-5 text-center">
-        Contest times are shown in your local timezone (IST). Times may change — verify on the platform before the contest starts.
-      </p>
+          <div className="grid grid-cols-7 gap-2 text-center font-mono text-xs">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+              <div key={day} className="py-1 text-[11px] text-ink-muted uppercase font-semibold">
+                {day}
+              </div>
+            ))}
+            {Array.from({ length: 30 }).map((_, i) => {
+              const dayNum = i + 1;
+              const hasCF = dayNum === 18 || dayNum === 22;
+              const hasATC = dayNum === 12 || dayNum === 24;
+              return (
+                <div
+                  key={dayNum}
+                  className={`h-20 p-1.5 border rounded-lg text-left flex flex-col justify-between transition-colors ${
+                    dayNum === 22 ? 'border-accent bg-accent-subtle/30' : 'border-app-border bg-app-bg/50'
+                  }`}
+                >
+                  <span className="text-[10px] font-bold text-ink">{dayNum}</span>
+                  <div className="space-y-1">
+                    {hasCF && (
+                      <div className="text-[9px] p-0.5 rounded bg-blue-100 text-blue-800 font-bold truncate">
+                        CF Div. 2
+                      </div>
+                    )}
+                    {hasATC && (
+                      <div className="text-[9px] p-0.5 rounded bg-cyan-100 text-cyan-800 font-bold truncate">
+                        AtCoder ABC
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
