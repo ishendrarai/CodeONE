@@ -6,33 +6,50 @@
  * Policy: Governed by the 12-point Permanent API Integration Policy. Never store external passwords.
  */
 
+const { InvalidHandleError } = require('./errors');
+
 class PlatformAdapter {
   constructor(platformName) {
+    if (!platformName || typeof platformName !== 'string') {
+      throw new Error('PlatformAdapter requires a valid platformName string');
+    }
     this.platformName = platformName;
   }
 
   /**
    * Returns operational feature flags for this platform adapter.
-   * @returns {{ submissions: boolean, ratingHistory: boolean, contests: boolean, verification: boolean }}
+   * @returns {import('./PlatformAdapter.types').PlatformCapabilities}
    */
   capabilities() {
     throw new Error('capabilities() must be implemented by adapter subclass');
   }
 
   /**
+   * Normalizes a public handle (trims whitespace; subclasses may apply platform casing rules).
+   * @param {string} handle
+   * @returns {string}
+   */
+  normalizeHandle(handle) {
+    if (typeof handle !== 'string' || !handle.trim()) {
+      throw new InvalidHandleError(this.platformName, handle, 'Handle must be a non-empty string.');
+    }
+    return handle.trim();
+  }
+
+  /**
    * Verifies public handle ownership via profile challenge token or OAuth.
    * @param {string} handle
-   * @param {string} userId
+   * @param {string} challengeCode
    * @returns {Promise<boolean>}
    */
-  async verifyOwnership(handle, userId) {
+  async verifyOwnership(handle, challengeCode) {
     throw new Error('verifyOwnership() must be implemented by adapter subclass');
   }
 
   /**
-   * Fetches latest public profile snapshot (rating, rank).
+   * Fetches latest public profile snapshot (rating, rank, normalized fields).
    * @param {string} handle
-   * @returns {Promise<{ rating: number|null, rank: string|null }>}
+   * @returns {Promise<import('./PlatformAdapter.types').NormalizedProfile>}
    */
   async fetchProfile(handle) {
     throw new Error('fetchProfile() must be implemented by adapter subclass');
@@ -41,17 +58,17 @@ class PlatformAdapter {
   /**
    * Fetches submission telemetry since a specified timestamp or cursor.
    * @param {string} handle
-   * @param {Date|null} since
-   * @returns {Promise<Array<{ externalId: string, problemId: string, title: string, verdict: string, language: string, submittedAt: Date }>>}
+   * @param {Date|null} [since]
+   * @returns {Promise<Array<import('./PlatformAdapter.types').NormalizedSubmission>>}
    */
-  async fetchSubmissions(handle, since) {
+  async fetchSubmissions(handle, since = null) {
     throw new Error('fetchSubmissions() must be implemented by adapter subclass');
   }
 
   /**
    * Fetches contest rating progression records.
    * @param {string} handle
-   * @returns {Promise<Array<{ contestId: string, oldRating: number, newRating: number, recordedAt: Date }>>}
+   * @returns {Promise<Array<import('./PlatformAdapter.types').NormalizedRatingChange>>}
    */
   async fetchRatingHistory(handle) {
     throw new Error('fetchRatingHistory() must be implemented by adapter subclass');
@@ -59,8 +76,8 @@ class PlatformAdapter {
 
   /**
    * Fetches upcoming and historical contest schedules.
-   * @param {string} handle
-   * @returns {Promise<Array<{ externalId: string, name: string, startTime: Date, durationSeconds: number, url: string }>>}
+   * @param {string} [handle]
+   * @returns {Promise<Array<import('./PlatformAdapter.types').NormalizedContest>>}
    */
   async fetchContests(handle) {
     throw new Error('fetchContests() must be implemented by adapter subclass');
@@ -68,4 +85,3 @@ class PlatformAdapter {
 }
 
 module.exports = PlatformAdapter;
-
