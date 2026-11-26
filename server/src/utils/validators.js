@@ -40,10 +40,21 @@ const goalSchema = Joi.object({
   endDate: Joi.date().iso().min(Joi.ref('startDate')).required(),
 });
 
+const userProfileUpdateSchema = Joi.object({
+  name: Joi.string().trim().min(1).max(100),
+  avatarUrl: Joi.string().uri().allow(null, ''),
+  settings: Joi.object({
+    timezone: Joi.string().trim().max(64),
+    theme: Joi.string().valid('light', 'dark', 'system'),
+    dailyGoal: Joi.number().integer().min(1).max(50),
+  }).unknown(true),
+}).min(1);
+
 module.exports = {
   registerSchema,
   loginSchema,
   platformAccountSchema,
   userProblemUpdateSchema,
   goalSchema,
+  userProfileUpdateSchema,
 };
