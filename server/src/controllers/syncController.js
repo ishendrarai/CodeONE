@@ -28,8 +28,8 @@ async function syncAccount(req, res, next) {
 
 async function getLogs(req, res, next) {
   try {
-    const logs = await syncService.getSyncLogs(req.user.sub, req.query.platformAccountId);
-    return res.status(200).json({ success: true, data: logs });
+    const result = await syncService.getSyncLogs(req.user.sub, req.query);
+    return res.status(200).json({ success: true, data: result.logs, meta: result.meta });
   } catch (err) {
     next(err);
   }

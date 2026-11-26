@@ -125,8 +125,10 @@ model PlatformAccount {
   userId             String    @map("user_id") @db.Uuid
   platformName       String    @map("platform_name") @db.VarChar(50)
   username           String    @db.VarChar(100)
-  verificationStatus String    @default("unverified") @map("verification_status") @db.VarChar(20) // 'unverified', 'pending', 'verified', 'failed'
-  verifiedAt         DateTime? @map("verified_at") @db.Timestamptz
+  verificationStatus    String    @default("unverified") @map("verification_status") @db.VarChar(20) // 'unverified', 'pending', 'verified', 'failed'
+  verificationToken     String?   @map("verification_token") @db.VarChar(64)
+  verificationExpiresAt DateTime? @map("verification_expires_at") @db.Timestamptz
+  verifiedAt            DateTime? @map("verified_at") @db.Timestamptz
   rating             Int?
   rank               String?   @db.VarChar(50)
   lastSynced         DateTime? @map("last_synced") @db.Timestamptz

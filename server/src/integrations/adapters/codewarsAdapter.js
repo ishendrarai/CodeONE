@@ -16,28 +16,40 @@ class CodewarsAdapter extends PlatformAdapter {
 
   capabilities() {
     return {
+      profile: false,
+      ownershipChallenge: false,
       submissions: true, // Completed katas only
       ratingHistory: false,
       contests: false,
       verification: true,
+      partialData: true,
     };
   }
 
   async verifyOwnership(handle, challengeCode) {
-    return false;
+    void challengeCode;
+    return { verified: false, canonicalHandle: this.normalizeHandle(handle) };
   }
 
   async fetchProfile(handle) {
-    // Phase 4: Calls GET /users/{handle}
-    return { rating: null, rank: null };
+    const canonicalHandle = this.normalizeHandle(handle);
+    return {
+      platform: this.platformName,
+      handle: canonicalHandle,
+      canonicalHandle,
+      rating: null,
+      rank: null,
+      fetchedAt: new Date(),
+      operationalState: 'partial_data',
+    };
   }
 
-  async fetchSubmissions(handle, since) {
+  async fetchSubmissions(_handle, _since) {
     // Phase 4: Calls GET /users/{handle}/code-challenges/completed
     return [];
   }
 
-  async fetchRatingHistory(handle) {
+  async fetchRatingHistory(_handle) {
     return [];
   }
 

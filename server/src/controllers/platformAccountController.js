@@ -32,7 +32,7 @@ async function verifyAccount(req, res, next) {
     const result = await platformAccountService.verifyAccountOwnership(
       req.user.sub,
       req.params.id,
-      req.body.verificationCode
+      req.body
     );
     return res.status(200).json({ success: true, data: result });
   } catch (err) {

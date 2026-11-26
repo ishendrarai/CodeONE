@@ -11,14 +11,23 @@ const router = express.Router();
 const platformAccountController = require('../controllers/platformAccountController');
 const authMiddleware = require('../middleware/authMiddleware');
 const validate = require('../middleware/validationMiddleware');
-const { platformAccountSchema } = require('../utils/validators');
+const {
+  platformAccountSchema,
+  uuidParamSchema,
+  verifyPlatformAccountSchema,
+} = require('../utils/validators');
 
 router.use(authMiddleware);
 
 router.get('/', platformAccountController.getAccounts);
 router.post('/', validate(platformAccountSchema), platformAccountController.linkAccount);
-router.post('/:id/verify', platformAccountController.verifyAccount);
-router.delete('/:id', platformAccountController.unlinkAccount);
+router.post(
+  '/:id/verify',
+  validate(uuidParamSchema, 'params'),
+  validate(verifyPlatformAccountSchema, 'body'),
+  platformAccountController.verifyAccount
+);
+router.delete('/:id', validate(uuidParamSchema, 'params'), platformAccountController.unlinkAccount);
 
 module.exports = router;
 
