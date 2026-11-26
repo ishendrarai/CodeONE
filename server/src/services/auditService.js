@@ -8,6 +8,35 @@
 
 const prisma = require('../config/database');
 
+function logAuditEvent({
+  userId = null,
+  action,
+  status = 'success',
+  ipAddress = null,
+  userAgent = null,
+  metadata = {},
+}) {
+  void Promise.resolve()
+    .then(() =>
+      prisma.auditLog.create({
+        data: {
+          userId,
+          actorRole: metadata.actorRole || (userId ? 'user' : 'anonymous'),
+          action,
+          resourceType: metadata.resourceType || 'authentication',
+          resourceId: metadata.resourceId || null,
+          ipAddress,
+          userAgent,
+          status,
+          metadata,
+        },
+      })
+    )
+    .catch((err) => {
+      console.error('[Audit Error] Failed to write security audit log:', err.message);
+    });
+}
+
 async function logSecurityEvent({
   actorUserId = null,
   actorRole = 'anonymous',
@@ -16,23 +45,24 @@ async function logSecurityEvent({
   resourceId = null,
   ipAddress = null,
   userAgent = null,
-  status, // 'success' | 'failure' | 'denied'
+  status = 'success',
   metadata = {},
 }) {
-  try {
-    // Inserts append-only record into audit_logs table
-    console.log(`[Audit] ${status.toUpperCase()} - ${action} by ${actorRole}:${actorUserId || 'none'}`);
-  } catch (err) {
-    console.error('[Audit Error] Failed to write security audit log:', err.message);
-  }
-}
-
-async function getAuditLogs(filters = {}, pagination = {}) {
-  return { logs: [], meta: { pagination: {} } };
+  const auditMetadata = { ...metadata, actorRole };
+  if (resourceType) auditMetadata.resourceType = resourceType;
+  if (resourceId) auditMetadata.resourceId = resourceId;
+  return logAuditEvent({
+    userId: actorUserId,
+    action,
+    status,
+    ipAddress,
+    userAgent,
+    metadata: auditMetadata,
+  });
 }
 
 module.exports = {
+  logAuditEvent,
   logSecurityEvent,
-  getAuditLogs,
 };
 

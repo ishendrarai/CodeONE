@@ -6,17 +6,24 @@
  * Interaction: Utilized by authService during registration and login credential verification.
  */
 
+const argon2 = require('argon2');
 const bcrypt = require('bcryptjs');
 
-const SALT_ROUNDS = 12;
-
 async function hashPassword(plainPassword) {
-  return await bcrypt.hash(plainPassword, SALT_ROUNDS);
+  return argon2.hash(plainPassword, {
+    type: argon2.argon2id,
+    memoryCost: 19456,
+    timeCost: 2,
+    parallelism: 1,
+  });
 }
 
 async function verifyPassword(plainPassword, hashedPassword) {
   if (!hashedPassword) return false;
-  return await bcrypt.compare(plainPassword, hashedPassword);
+  if (/^\$2[aby]\$/.test(hashedPassword)) {
+    return bcrypt.compare(plainPassword, hashedPassword);
+  }
+  return argon2.verify(hashedPassword, plainPassword, { type: argon2.argon2id });
 }
 
 module.exports = {

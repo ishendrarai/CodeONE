@@ -18,13 +18,19 @@ const USER_B = '22222222-2222-4222-8222-222222222222';
 const ACCOUNT_ID = '33333333-3333-4333-8333-333333333333';
 
 function authHeader(userId = USER_A) {
-  const token = signAccessToken({ sub: userId, role: 'user', sid: 'sess-test' });
+  const token = signAccessToken({
+    sub: userId,
+    email: `${userId}@example.com`,
+    role: 'USER',
+    sid: 'sess-test',
+  });
   return `Bearer ${token}`;
 }
 
 describe('P1 Platform Account Linking & Verification APIs (/api/v1/platform-accounts)', () => {
   beforeEach(() => {
     platformAccountService._challengeStore.clear();
+    jest.spyOn(prisma.auditLog, 'create').mockResolvedValue({});
   });
 
   afterEach(() => {

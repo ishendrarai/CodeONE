@@ -9,9 +9,9 @@
 const { verifyAccessToken } = require('../utils/jwt');
 const { ERROR_CODES } = require('../utils/constants');
 
-function authMiddleware(req, res, next) {
+function authenticate(req, res, next) {
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!authHeader || !/^Bearer\s+\S+$/i.test(authHeader)) {
     return res.status(401).json({
       success: false,
       error: {
@@ -21,11 +21,25 @@ function authMiddleware(req, res, next) {
     });
   }
 
-  const token = authHeader.split(' ')[1];
+  const token = authHeader.replace(/^Bearer\s+/i, '');
+  let user;
   try {
     const decoded = verifyAccessToken(token);
-    req.user = decoded; // { sub: userId, role, sid: sessionId }
-    next();
+    const id = decoded.id || decoded.sub;
+    const sessionId = decoded.sessionId || decoded.sid;
+    if (!id || typeof decoded.email !== 'string' || !decoded.role || !sessionId) {
+      throw new Error('Access token is missing required identity claims.');
+    }
+
+    user = {
+      ...decoded,
+      id,
+      sub: id,
+      email: decoded.email,
+      role: String(decoded.role).toUpperCase(),
+      sessionId,
+      sid: sessionId,
+    };
   } catch (err) {
     return res.status(401).json({
       success: false,
@@ -35,6 +49,11 @@ function authMiddleware(req, res, next) {
       },
     });
   }
+
+  req.user = user;
+  return next();
 }
 
-module.exports = authMiddleware;
+module.exports = authenticate;
+module.exports.authenticate = authenticate;
+module.exports.verifyJWT = authenticate;

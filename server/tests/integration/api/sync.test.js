@@ -20,13 +20,19 @@ const ACCOUNT_ID = '33333333-3333-4333-8333-333333333333';
 const SYNC_LOG_ID = '44444444-4444-4444-8444-444444444444';
 
 function authHeader(userId = USER_A) {
-  const token = signAccessToken({ sub: userId, role: 'user', sid: 'sess-sync' });
+  const token = signAccessToken({
+    sub: userId,
+    email: `${userId}@example.com`,
+    role: 'USER',
+    sid: 'sess-sync',
+  });
   return `Bearer ${token}`;
 }
 
 describe('P2 Background Synchronization APIs (/api/v1/sync)', () => {
   beforeEach(() => {
     syncService._activeSyncLocks.clear();
+    jest.spyOn(prisma.auditLog, 'create').mockResolvedValue({});
   });
 
   afterEach(() => {

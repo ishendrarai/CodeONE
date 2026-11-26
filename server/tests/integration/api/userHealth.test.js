@@ -40,7 +40,12 @@ describe('P1 Health & User Profile APIs', () => {
     };
     jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(mockUser);
 
-    const token = signAccessToken({ sub: 'user-123', role: 'user', sid: 'sess-1' });
+    const token = signAccessToken({
+      sub: 'user-123',
+      email: 'divyanshi@example.com',
+      role: 'USER',
+      sid: 'sess-1',
+    });
     const res = await request(app)
       .get('/api/v1/users/me')
       .set('Authorization', `Bearer ${token}`);
@@ -61,7 +66,12 @@ describe('P1 Health & User Profile APIs', () => {
       settings: { theme: 'dark', timezone: 'Asia/Kolkata' },
     });
 
-    const token = signAccessToken({ sub: 'user-123', role: 'user', sid: 'sess-1' });
+    const token = signAccessToken({
+      sub: 'user-123',
+      email: 'divyanshi@example.com',
+      role: 'USER',
+      sid: 'sess-1',
+    });
     const res = await request(app)
       .patch('/api/v1/users/me')
       .set('Authorization', `Bearer ${token}`)
