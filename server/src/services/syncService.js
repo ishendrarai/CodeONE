@@ -13,6 +13,7 @@ const { ERROR_CODES } = require('../utils/constants');
 
 // In-process lock set preventing concurrent duplicate syncs for the same platformAccountId
 const activeSyncLocks = new Set();
+const SYNC_LOCK_NAMESPACE = 741250;
 
 function createServiceError(message, statusCode, code, details) {
   const err = new Error(message);
@@ -296,38 +297,44 @@ async function triggerAccountSync(userId, platformAccountId, options = {}) {
     );
   }
 
-  const activeDbSync = await prisma.syncLog.findFirst({
-    where: {
-      platformAccountId,
-      status: { in: ['pending', 'running'] },
-    },
-    select: { id: true, status: true },
-  });
-
-  if (activeDbSync) {
-    throw createServiceError(
-      'A synchronization job is already in progress for this platform account.',
-      409,
-      ERROR_CODES.CONFLICT
-    );
-  }
-
   activeSyncLocks.add(platformAccountId);
 
   let syncLog;
   try {
-    syncLog = await prisma.syncLog.create({
-      data: {
-        platformAccountId,
-        status: 'running',
-        recordsFetched: 0,
-      },
-      select: {
-        id: true,
-        platformAccountId: true,
-        status: true,
-        startedAt: true,
-      },
+    syncLog = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`
+        SELECT pg_advisory_xact_lock(${SYNC_LOCK_NAMESPACE}, hashtext(${platformAccountId}))
+      `;
+
+      const activeDbSync = await tx.syncLog.findFirst({
+        where: {
+          platformAccountId,
+          status: { in: ['pending', 'running'] },
+        },
+        select: { id: true, status: true },
+      });
+
+      if (activeDbSync) {
+        throw createServiceError(
+          'A synchronization job is already in progress for this platform account.',
+          409,
+          ERROR_CODES.CONFLICT
+        );
+      }
+
+      return tx.syncLog.create({
+        data: {
+          platformAccountId,
+          status: 'running',
+          recordsFetched: 0,
+        },
+        select: {
+          id: true,
+          platformAccountId: true,
+          status: true,
+          startedAt: true,
+        },
+      });
     });
   } catch (err) {
     activeSyncLocks.delete(platformAccountId);

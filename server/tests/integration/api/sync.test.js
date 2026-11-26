@@ -34,6 +34,8 @@ describe('P2 Background Synchronization APIs (/api/v1/sync)', () => {
   beforeEach(() => {
     syncService._activeSyncLocks.clear();
     jest.spyOn(prisma.auditLog, 'create').mockResolvedValue({});
+    jest.spyOn(prisma, '$transaction').mockImplementation(async (callback) => callback(prisma));
+    jest.spyOn(prisma, '$executeRaw').mockResolvedValue(1);
   });
 
   afterEach(() => {
@@ -122,6 +124,65 @@ describe('P2 Background Synchronization APIs (/api/v1/sync)', () => {
 
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe('CONFLICT');
+  });
+
+  test('simultaneous sync requests only create one active job', async () => {
+    jest.spyOn(prisma.platformAccount, 'findUnique').mockResolvedValue({
+      id: ACCOUNT_ID,
+      userId: USER_A,
+      platformName: 'codeforces',
+      username: 'tourist',
+      verificationStatus: 'verified',
+      isActive: true,
+    });
+
+    let releaseDbCheck;
+    const dbCheckGate = new Promise((resolve) => {
+      releaseDbCheck = resolve;
+    });
+    let notifyFindFirstStarted;
+    const findFirstStarted = new Promise((resolve) => {
+      notifyFindFirstStarted = resolve;
+    });
+    let findFirstCalls = 0;
+    const findFirstSpy = jest.spyOn(prisma.syncLog, 'findFirst').mockImplementation(async () => {
+      findFirstCalls += 1;
+      if (findFirstCalls === 1) notifyFindFirstStarted();
+      if (findFirstCalls === 2) releaseDbCheck();
+      await dbCheckGate;
+      return null;
+    });
+    const syncCreateSpy = jest.spyOn(prisma.syncLog, 'create').mockResolvedValue({
+      id: SYNC_LOG_ID,
+      platformAccountId: ACCOUNT_ID,
+      status: 'running',
+      startedAt: new Date('2026-11-27T00:00:00.000Z'),
+    });
+    jest.spyOn(global, 'setImmediate').mockImplementation(() => 0);
+
+    const firstRequest = request(app)
+      .post(`/api/v1/sync/platform-accounts/${ACCOUNT_ID}`)
+      .set('Authorization', authHeader(USER_A))
+      .then((response) => response);
+
+    await findFirstStarted;
+    let secondResponse;
+    try {
+      secondResponse = await request(app)
+        .post(`/api/v1/sync/platform-accounts/${ACCOUNT_ID}`)
+        .set('Authorization', authHeader(USER_A));
+    } finally {
+      releaseDbCheck();
+    }
+
+    const firstResponse = await firstRequest;
+
+    expect(secondResponse.status).toBe(409);
+    expect(firstResponse.status).toBe(202);
+    expect(findFirstSpy).toHaveBeenCalledTimes(1);
+    expect(syncCreateSpy).toHaveBeenCalledTimes(1);
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$executeRaw.mock.calls[0][0].join('')).toContain('pg_advisory_xact_lock');
   });
 
   test('7. Valid sync returns HTTP 202 Accepted with syncLogId and completes background job', async () => {
