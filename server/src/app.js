@@ -43,6 +43,15 @@ app.use('/api', generalLimiter);
 const passport = configurePassport();
 app.use(passport.initialize());
 
+// Root health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+  });
+});
+
 // Mount modular API under /api/v1
 app.use('/api/v1', routes);
 
