@@ -26,6 +26,8 @@ class MockPlatformAdapter extends PlatformAdapter {
 
   capabilities() {
     return {
+      profile: true,
+      ownershipChallenge: true,
       submissions: true,
       ratingHistory: true,
       contests: true,
@@ -38,9 +40,18 @@ class MockPlatformAdapter extends PlatformAdapter {
   async verifyOwnership(handle, challengeCode) {
     const cleanHandle = this.normalizeHandle(handle);
     if (!challengeCode || typeof challengeCode !== 'string') {
-      return false;
+      return { verified: false, canonicalHandle: cleanHandle };
     }
-    return cleanHandle === this.fixture.handle && this.fixture.bio?.includes(challengeCode);
+    const verified =
+      cleanHandle === this.fixture.handle && Boolean(this.fixture.bio?.includes(challengeCode));
+    return {
+      verified,
+      canonicalHandle: cleanHandle,
+      profileSnapshot: {
+        rating: this.fixture.rating ?? null,
+        rank: this.fixture.rank ?? null,
+      },
+    };
   }
 
   async fetchProfile(handle) {
@@ -51,6 +62,7 @@ class MockPlatformAdapter extends PlatformAdapter {
     return {
       platform: this.platformName,
       handle: cleanHandle,
+      canonicalHandle: cleanHandle,
       rating: this.fixture.rating ?? null,
       rank: this.fixture.rank ?? null,
       fetchedAt: new Date('2026-11-27T00:00:00.000Z'),
@@ -107,15 +119,32 @@ describe('PlatformAdapter Contract (P0)', () => {
         bio: 'CODEONE-VERIFY-123456',
       });
 
+      expect(PlatformAdapter.SOURCE_STATES).toEqual({
+        CONNECTED: 'connected',
+        PARTIAL_DATA: 'partial_data',
+        RATE_LIMITED: 'rate_limited',
+        NOT_CONNECTED: 'not_connected',
+        SOURCE_UNAVAILABLE: 'source_unavailable',
+        NOT_APPROVED: 'not_approved',
+      });
+
       expect(mock.capabilities()).toMatchObject({
+        profile: true,
+        ownershipChallenge: true,
         submissions: true,
         ratingHistory: true,
         contests: true,
         verification: true,
       });
 
-      await expect(mock.verifyOwnership('  new_coder ', 'CODEONE-VERIFY-123456')).resolves.toBe(true);
-      await expect(mock.verifyOwnership('new_coder', 'WRONG-CODE')).resolves.toBe(false);
+      await expect(mock.verifyOwnership('  new_coder ', 'CODEONE-VERIFY-123456')).resolves.toMatchObject({
+        verified: true,
+        canonicalHandle: 'new_coder',
+      });
+      await expect(mock.verifyOwnership('new_coder', 'WRONG-CODE')).resolves.toMatchObject({
+        verified: false,
+        canonicalHandle: 'new_coder',
+      });
 
       const profile = await mock.fetchProfile('new_coder');
       expect(profile).toMatchObject({

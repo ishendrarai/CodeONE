@@ -68,36 +68,49 @@ async function persistSyncData(account, profile, submissions, ratingHistory) {
   let recordsFetched = 0;
 
   if (Array.isArray(submissions) && submissions.length > 0) {
+    const problemIdCache = new Map();
+
     for (const sub of submissions) {
       let problemRecordId = null;
       if (sub.problem && prisma.problem?.upsert) {
-        const upsertedProblem = await prisma.problem.upsert({
-          where: {
-            platform_problemId: {
+        const cacheKey = `${account.platformName}:${sub.problem.problemId}`;
+        if (problemIdCache.has(cacheKey)) {
+          problemRecordId = problemIdCache.get(cacheKey);
+        } else {
+          const safeTitle = String(sub.problem.title || sub.problem.problemId).slice(0, 255);
+          const upsertedProblem = await prisma.problem.upsert({
+            where: {
+              platform_problemId: {
+                platform: account.platformName,
+                problemId: sub.problem.problemId,
+              },
+            },
+            update: {
+              title: safeTitle,
+              difficulty: sub.problem.difficulty,
+              difficultyRating: sub.problem.difficultyRating,
+              url: sub.problem.url,
+            },
+            create: {
               platform: account.platformName,
               problemId: sub.problem.problemId,
+              title: safeTitle,
+              difficulty: sub.problem.difficulty,
+              difficultyRating: sub.problem.difficultyRating,
+              url: sub.problem.url,
             },
-          },
-          update: {
-            title: sub.problem.title,
-            difficulty: sub.problem.difficulty,
-            difficultyRating: sub.problem.difficultyRating,
-            url: sub.problem.url,
-          },
-          create: {
-            platform: account.platformName,
-            problemId: sub.problem.problemId,
-            title: sub.problem.title,
-            difficulty: sub.problem.difficulty,
-            difficultyRating: sub.problem.difficultyRating,
-            url: sub.problem.url,
-          },
-          select: { id: true },
-        });
-        problemRecordId = upsertedProblem?.id || null;
+            select: { id: true },
+          });
+          problemRecordId = upsertedProblem?.id || null;
+          if (problemRecordId) {
+            problemIdCache.set(cacheKey, problemRecordId);
+          }
+        }
       }
 
       if (prisma.submission?.upsert) {
+        const safeLanguage =
+          typeof sub.language === 'string' && sub.language.trim() ? sub.language.slice(0, 50) : null;
         await prisma.submission.upsert({
           where: {
             platformAccountId_externalId: {
@@ -107,14 +120,14 @@ async function persistSyncData(account, profile, submissions, ratingHistory) {
           },
           update: {
             verdict: sub.verdict,
-            language: sub.language,
+            language: safeLanguage,
           },
           create: {
             platformAccountId: account.id,
             problemId: problemRecordId,
             externalId: sub.externalId,
             verdict: sub.verdict,
-            language: sub.language,
+            language: safeLanguage,
             submittedAt: sub.submittedAt,
           },
         });
@@ -306,7 +319,7 @@ async function triggerAccountSync(userId, platformAccountId, options = {}) {
     syncLog = await prisma.syncLog.create({
       data: {
         platformAccountId,
-        status: 'pending',
+        status: 'running',
         recordsFetched: 0,
       },
       select: {

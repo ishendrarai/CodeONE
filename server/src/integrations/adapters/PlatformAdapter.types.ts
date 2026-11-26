@@ -10,13 +10,15 @@ export type PlatformName = 'codeforces' | 'atcoder' | 'codewars' | 'manual_impor
 
 export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'failed';
 
-export type PlatformOperationalState =
+export type SourceState =
   | 'connected'
   | 'partial_data'
   | 'rate_limited'
+  | 'not_connected'
   | 'source_unavailable'
-  | 'reauthorization_required'
   | 'not_approved';
+
+export type PlatformOperationalState = SourceState | 'reauthorization_required';
 
 export type ProblemDifficulty = 'easy' | 'medium' | 'hard';
 
@@ -30,15 +32,19 @@ export type SubmissionVerdict =
   | 'partial'
   | 'other';
 
-export interface PlatformCapabilities {
+export interface AdapterCapabilities {
+  profile: boolean;
+  ownershipChallenge: boolean;
   submissions: boolean;
   ratingHistory: boolean;
   contests: boolean;
-  verification: boolean;
+  verification?: boolean;
   partialData?: boolean;
   rateLimitDelayMs?: number;
   supportsIncrementalSync?: boolean;
 }
+
+export type PlatformCapabilities = AdapterCapabilities;
 
 export interface PlatformAccountDTO {
   id: string;
@@ -54,9 +60,23 @@ export interface PlatformAccountDTO {
   syncFrequency: number;
 }
 
+export interface ProfileSnapshot {
+  rating: number | null;
+  rank: string | null;
+  maxRating?: number | null;
+  maxRank?: string | null;
+}
+
+export interface OwnershipVerificationResult {
+  verified: boolean;
+  canonicalHandle?: string;
+  profileSnapshot?: ProfileSnapshot;
+}
+
 export interface NormalizedProfile {
   platform: PlatformName;
   handle: string;
+  canonicalHandle: string;
   displayName?: string | null;
   rating: number | null;
   maxRating?: number | null;
@@ -151,11 +171,11 @@ export type AdapterResult<T> =
 export interface IPlatformAdapter {
   readonly platformName: PlatformName | string;
 
-  capabilities(): PlatformCapabilities;
+  capabilities(): AdapterCapabilities;
 
   normalizeHandle(handle: string): string;
 
-  verifyOwnership(handle: string, challengeCode: string): Promise<boolean>;
+  verifyOwnership(handle: string, expectedToken: string): Promise<OwnershipVerificationResult>;
 
   fetchProfile(handle: string): Promise<NormalizedProfile>;
 

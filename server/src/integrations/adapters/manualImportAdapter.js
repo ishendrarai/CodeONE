@@ -15,19 +15,23 @@ class ManualImportAdapter extends PlatformAdapter {
 
   capabilities() {
     return {
+      profile: false,
+      ownershipChallenge: false,
       submissions: true,
       ratingHistory: false,
       contests: false,
       verification: true,
+      partialData: true,
     };
   }
 
   async verifyOwnership(handle, challengeCode) {
+    void challengeCode;
     // Verified by ownership of authenticated CodeONE user account
-    return true;
+    return { verified: true, canonicalHandle: this.normalizeHandle(handle) };
   }
 
-  async parseExportFile(fileBuffer, mimeType) {
+  async parseExportFile(_fileBuffer, _mimeType) {
     // Phase 4: Parses and validates uploaded JSON/CSV records against schema
     return {
       problems: [],

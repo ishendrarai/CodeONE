@@ -1,12 +1,21 @@
 /**
  * src/integrations/adapters/PlatformAdapter.js
  * Layer: Integrations / Adapters
- * Responsibility: Base contract interface for all external competitive programming platform connectors.
+ * Responsibility: Base contract class for all external competitive programming platform connectors.
  * Interaction: Extended by CodeforcesAdapter, AtCoderAdapter, CodewarsAdapter, and ManualImportAdapter.
  * Policy: Governed by the 12-point Permanent API Integration Policy. Never store external passwords.
  */
 
 const { InvalidHandleError } = require('./errors');
+
+const SOURCE_STATES = Object.freeze({
+  CONNECTED: 'connected',
+  PARTIAL_DATA: 'partial_data',
+  RATE_LIMITED: 'rate_limited',
+  NOT_CONNECTED: 'not_connected',
+  SOURCE_UNAVAILABLE: 'source_unavailable',
+  NOT_APPROVED: 'not_approved',
+});
 
 class PlatformAdapter {
   constructor(platformName) {
@@ -18,7 +27,7 @@ class PlatformAdapter {
 
   /**
    * Returns operational feature flags for this platform adapter.
-   * @returns {import('./PlatformAdapter.types').PlatformCapabilities}
+   * @returns {import('./PlatformAdapter.types').AdapterCapabilities}
    */
   capabilities() {
     throw new Error('capabilities() must be implemented by adapter subclass');
@@ -38,50 +47,52 @@ class PlatformAdapter {
 
   /**
    * Verifies public handle ownership via profile challenge token or OAuth.
-   * @param {string} handle
-   * @param {string} challengeCode
-   * @returns {Promise<boolean>}
+   * @param {string} _handle
+   * @param {string} _expectedToken
+   * @returns {Promise<import('./PlatformAdapter.types').OwnershipVerificationResult>}
    */
-  async verifyOwnership(handle, challengeCode) {
+  async verifyOwnership(_handle, _expectedToken) {
     throw new Error('verifyOwnership() must be implemented by adapter subclass');
   }
 
   /**
-   * Fetches latest public profile snapshot (rating, rank, normalized fields).
-   * @param {string} handle
+   * Fetches latest public profile snapshot (canonicalHandle, rating, rank, normalized fields).
+   * @param {string} _handle
    * @returns {Promise<import('./PlatformAdapter.types').NormalizedProfile>}
    */
-  async fetchProfile(handle) {
+  async fetchProfile(_handle) {
     throw new Error('fetchProfile() must be implemented by adapter subclass');
   }
 
   /**
    * Fetches submission telemetry since a specified timestamp or cursor.
-   * @param {string} handle
-   * @param {Date|null} [since]
+   * @param {string} _handle
+   * @param {Date|null} [_since]
    * @returns {Promise<Array<import('./PlatformAdapter.types').NormalizedSubmission>>}
    */
-  async fetchSubmissions(handle, since = null) {
+  async fetchSubmissions(_handle, _since = null) {
     throw new Error('fetchSubmissions() must be implemented by adapter subclass');
   }
 
   /**
    * Fetches contest rating progression records.
-   * @param {string} handle
+   * @param {string} _handle
    * @returns {Promise<Array<import('./PlatformAdapter.types').NormalizedRatingChange>>}
    */
-  async fetchRatingHistory(handle) {
+  async fetchRatingHistory(_handle) {
     throw new Error('fetchRatingHistory() must be implemented by adapter subclass');
   }
 
   /**
    * Fetches upcoming and historical contest schedules.
-   * @param {string} [handle]
+   * @param {string} [_handle]
    * @returns {Promise<Array<import('./PlatformAdapter.types').NormalizedContest>>}
    */
-  async fetchContests(handle) {
+  async fetchContests(_handle) {
     throw new Error('fetchContests() must be implemented by adapter subclass');
   }
 }
+
+PlatformAdapter.SOURCE_STATES = SOURCE_STATES;
 
 module.exports = PlatformAdapter;

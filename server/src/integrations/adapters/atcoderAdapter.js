@@ -17,27 +17,40 @@ class AtCoderAdapter extends PlatformAdapter {
 
   capabilities() {
     return {
+      profile: false,
+      ownershipChallenge: false,
       submissions: true,
       ratingHistory: false, // Third-party API provides partial/stats data
       contests: true,
       verification: true,
+      partialData: true,
     };
   }
 
   async verifyOwnership(handle, challengeCode) {
-    return false;
+    void challengeCode;
+    return { verified: false, canonicalHandle: this.normalizeHandle(handle) };
   }
 
   async fetchProfile(handle) {
-    return { rating: null, rank: null };
+    const canonicalHandle = this.normalizeHandle(handle);
+    return {
+      platform: this.platformName,
+      handle: canonicalHandle,
+      canonicalHandle,
+      rating: null,
+      rank: null,
+      fetchedAt: new Date(),
+      operationalState: 'partial_data',
+    };
   }
 
-  async fetchSubmissions(handle, since) {
+  async fetchSubmissions(_handle, _since) {
     // Phase 4: Calls GET /user/submissions?user={handle}&from_second={since}
     return [];
   }
 
-  async fetchRatingHistory(handle) {
+  async fetchRatingHistory(_handle) {
     return [];
   }
 

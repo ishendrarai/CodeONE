@@ -112,4 +112,43 @@ describe('security middleware', () => {
       else process.env.RATE_LIMIT_WINDOW_MS = previousWindowMs;
     }
   });
+
+  it('sanitizes PrismaClientInitializationError and P1001 to 503 without leaking local paths', () => {
+    const errorHandler = require('../../../src/middleware/errorHandler');
+    const prismaInitErr = new Error(
+      "Invalid `prisma.user.findUnique()` invocation in C:\\Users\\dev\\server\\src\\app.js:\nCan't reach database server at `localhost:5432`"
+    );
+    prismaInitErr.name = 'PrismaClientInitializationError';
+    prismaInitErr.errorCode = 'P1001';
+
+    const res = response();
+    const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      errorHandler(prismaInitErr, { method: 'GET', url: '/api/v1/users/me' }, res, jest.fn());
+      expect(res.status).toHaveBeenCalledWith(503);
+      const payload = res.json.mock.calls[0][0];
+      expect(payload.success).toBe(false);
+      expect(payload.error.code).toBe('SOURCE_UNAVAILABLE');
+      expect(payload.error.message).toBe(
+        'Database service is temporarily unavailable. Please try again later.'
+      );
+      expect(JSON.stringify(payload)).not.toContain('C:\\Users');
+      expect(JSON.stringify(payload)).not.toContain('prisma.');
+    } finally {
+      errSpy.mockRestore();
+    }
+  });
+
+  it('enforces 100kb JSON body size limit on express app with 413 response', async () => {
+    const app = require('../../../src/app');
+    const oversizedPayload = { data: 'a'.repeat(110 * 1024) };
+
+    const res = await request(app)
+      .post('/api/v1/auth/login')
+      .send(oversizedPayload);
+
+    expect(res.status).toBe(413);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
 });

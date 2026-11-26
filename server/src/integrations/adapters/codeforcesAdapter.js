@@ -20,6 +20,9 @@ const {
 const DEFAULT_TIMEOUT_MS = 5000;
 const DEFAULT_RATE_LIMIT_DELAY_MS = 2000;
 const PROFILE_CACHE_TTL_MS = 60 * 1000; // 60 seconds
+const DEFAULT_MAX_RETRIES = 2; // Initial attempt + up to 2 retries (max 3 attempts)
+const DEFAULT_RETRY_BASE_DELAY_MS = 500;
+const DEFAULT_MAX_RETRY_DELAY_MS = 8000;
 
 // Global module-level queue so concurrent requests/instances cannot bypass 1 req / 2s pacing
 let requestQueue = Promise.resolve();
@@ -63,12 +66,18 @@ class CodeforcesAdapter extends PlatformAdapter {
     this.baseUrl = options.baseUrl || 'https://codeforces.com/api';
     this.timeoutMs = options.timeoutMs || DEFAULT_TIMEOUT_MS;
     this.rateLimitDelayMs = options.rateLimitDelayMs ?? DEFAULT_RATE_LIMIT_DELAY_MS;
+    this.maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
+    this.retryBaseDelayMs = options.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS;
+    this.maxRetryDelayMs = options.maxRetryDelayMs ?? DEFAULT_MAX_RETRY_DELAY_MS;
+    this.randomFn = options.randomFn || Math.random;
     this.httpClient = options.httpClient || axios;
     this.profileCache = new Map();
   }
 
   capabilities() {
     return {
+      profile: true,
+      ownershipChallenge: true,
       submissions: true,
       ratingHistory: true,
       contests: true,
@@ -92,10 +101,21 @@ class CodeforcesAdapter extends PlatformAdapter {
   }
 
   /**
-   * Serializes outbound HTTP GET requests to Codeforces API with >=2000ms pacing
-   * and strict 5000ms timeout enforcement.
+   * Computes bounded exponential backoff with equal jitter ([0.5 * capped, capped]).
    */
-  _enqueueRequest(endpoint, params = {}) {
+  _calculateBackoffDelayMs(attempt, err) {
+    const rateLimitFloor = err instanceof RateLimitError ? err.retryAfterMs || 0 : 0;
+    const base = Math.max(this.retryBaseDelayMs, rateLimitFloor);
+    const exponential = base * Math.pow(2, attempt);
+    const capped = Math.min(exponential, this.maxRetryDelayMs);
+    const jitterFactor = 0.5 + this.randomFn() * 0.5;
+    return Math.round(capped * jitterFactor);
+  }
+
+  /**
+   * Enqueues a single HTTP attempt behind the module-level >=2000ms pacing lock.
+   */
+  _enqueueOnce(endpoint, params = {}) {
     const task = requestQueue.then(async () => {
       const now = Date.now();
       const elapsed = now - lastRequestAt;
@@ -110,6 +130,31 @@ class CodeforcesAdapter extends PlatformAdapter {
     // Keep the queue alive even if an individual request fails
     requestQueue = task.catch(() => {});
     return task;
+  }
+
+  /**
+   * Executes outbound Codeforces API requests through the serialized >=2000ms pacing queue
+   * with bounded exponential backoff + jitter retries on HTTP 429, 5xx, network errors,
+   * and Codeforces 'Call limit exceeded' responses.
+   */
+  async _enqueueRequest(endpoint, params = {}) {
+    let lastError;
+    for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
+      try {
+        return await this._enqueueOnce(endpoint, params);
+      } catch (err) {
+        lastError = err;
+        const isRetryable = err instanceof RateLimitError || err instanceof SourceUnavailableError;
+        if (!isRetryable || attempt >= this.maxRetries) {
+          throw err;
+        }
+        const backoffMs = this._calculateBackoffDelayMs(attempt, err);
+        if (backoffMs > 0) {
+          await sleep(backoffMs);
+        }
+      }
+    }
+    throw lastError;
   }
 
   async _executeGet(endpoint, params = {}) {
@@ -128,12 +173,21 @@ class CodeforcesAdapter extends PlatformAdapter {
 
       const status = err.response?.status;
       if (status === 429) {
-        throw new RateLimitError(this.platformName, 'Codeforces API rate limit exceeded.', this.rateLimitDelayMs);
+        const retryAfterHeader = err.response?.headers?.['retry-after'];
+        const parsedSeconds = Number(retryAfterHeader);
+        const retryAfterMs =
+          Number.isFinite(parsedSeconds) && parsedSeconds > 0
+            ? Math.min(parsedSeconds * 1000, this.maxRetryDelayMs)
+            : this.rateLimitDelayMs;
+        throw new RateLimitError(this.platformName, 'Codeforces API rate limit exceeded.', retryAfterMs);
       }
       if (status === 400 || status === 404) {
         const comment = err.response?.data?.comment || '';
         if (/not found/i.test(comment)) {
           throw new InvalidHandleError(this.platformName, params.handle || params.handles || '', comment);
+        }
+        if (/limit/i.test(comment)) {
+          throw new RateLimitError(this.platformName, comment, this.rateLimitDelayMs);
         }
       }
       if (status >= 500) {
@@ -204,16 +258,31 @@ class CodeforcesAdapter extends PlatformAdapter {
    */
   async verifyOwnership(handle, challengeCode) {
     if (typeof challengeCode !== 'string' || !challengeCode.trim()) {
-      return false;
+      return {
+        verified: false,
+        canonicalHandle: this.normalizeHandle(handle),
+      };
     }
 
     const user = await this._fetchRawUserInfo(handle, { bypassCache: true });
-    const token = challengeCode.trim();
+    const canonicalHandle =
+      typeof user.handle === 'string' ? user.handle : this.normalizeHandle(handle);
+    const token = challengeCode.trim().toLowerCase();
     const publicFields = [user.firstName, user.lastName, user.organization]
       .filter((val) => typeof val === 'string')
-      .map((val) => val.trim());
+      .map((val) => val.trim().toLowerCase());
 
-    return publicFields.some((field) => field.includes(token));
+    const verified = publicFields.some((field) => field.includes(token));
+    return {
+      verified,
+      canonicalHandle,
+      profileSnapshot: {
+        rating: typeof user.rating === 'number' ? user.rating : null,
+        rank: typeof user.rank === 'string' ? user.rank : null,
+        maxRating: typeof user.maxRating === 'number' ? user.maxRating : null,
+        maxRank: typeof user.maxRank === 'string' ? user.maxRank : null,
+      },
+    };
   }
 
   /**
@@ -228,6 +297,7 @@ class CodeforcesAdapter extends PlatformAdapter {
     return {
       platform: this.platformName,
       handle: normalizedHandle,
+      canonicalHandle: normalizedHandle,
       displayName:
         [user.firstName, user.lastName].filter((s) => typeof s === 'string' && s.trim()).join(' ') || null,
       rating,

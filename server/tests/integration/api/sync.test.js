@@ -16,6 +16,7 @@ const { SourceUnavailableError } = require('../../../src/integrations/adapters/e
 
 const USER_A = '11111111-1111-4111-8111-111111111111';
 const USER_B = '22222222-2222-4222-8222-222222222222';
+const USER_RATE_LIMITED = '55555555-5555-4555-8555-555555555555';
 const ACCOUNT_ID = '33333333-3333-4333-8333-333333333333';
 const SYNC_LOG_ID = '44444444-4444-4444-8444-444444444444';
 
@@ -134,10 +135,10 @@ describe('P2 Background Synchronization APIs (/api/v1/sync)', () => {
       lastSynced: null,
     });
     jest.spyOn(prisma.syncLog, 'findFirst').mockResolvedValue(null);
-    jest.spyOn(prisma.syncLog, 'create').mockResolvedValue({
+    const syncCreateSpy = jest.spyOn(prisma.syncLog, 'create').mockResolvedValue({
       id: SYNC_LOG_ID,
       platformAccountId: ACCOUNT_ID,
-      status: 'pending',
+      status: 'running',
       startedAt: new Date('2026-11-27T00:00:00.000Z'),
     });
 
@@ -179,11 +180,20 @@ describe('P2 Background Synchronization APIs (/api/v1/sync)', () => {
 
     expect(res.status).toBe(202);
     expect(res.body.success).toBe(true);
+    expect(syncCreateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          platformAccountId: ACCOUNT_ID,
+          status: 'running',
+          recordsFetched: 0,
+        }),
+      })
+    );
     expect(res.body.data).toMatchObject({
       syncLogId: SYNC_LOG_ID,
       platformAccountId: ACCOUNT_ID,
-      status: 'pending',
-      lifecycleStatus: 'PENDING',
+      status: 'running',
+      lifecycleStatus: 'RUNNING',
     });
 
     // Wait for setImmediate background execution to settle
@@ -302,10 +312,10 @@ describe('P2 Background Synchronization APIs (/api/v1/sync)', () => {
       lastSynced: null,
     });
     jest.spyOn(prisma.syncLog, 'findFirst').mockResolvedValue(null);
-    jest.spyOn(prisma.syncLog, 'create').mockResolvedValue({
+    const syncCreateSpy = jest.spyOn(prisma.syncLog, 'create').mockResolvedValue({
       id: SYNC_LOG_ID,
       platformAccountId: ACCOUNT_ID,
-      status: 'pending',
+      status: 'running',
       startedAt: new Date('2026-11-27T00:00:00.000Z'),
     });
     jest.spyOn(prisma.syncLog, 'update').mockResolvedValue({});
@@ -322,9 +332,70 @@ describe('P2 Background Synchronization APIs (/api/v1/sync)', () => {
     expect(res.status).toBe(202);
     expect(res.body.success).toBe(true);
     expect(res.body.data.enqueuedCount).toBe(1);
-    expect(res.body.data.jobs[0].syncLogId).toBe(SYNC_LOG_ID);
+    expect(syncCreateSpy).toHaveBeenCalledTimes(1);
+    expect(res.body.data.jobs[0]).toMatchObject({
+      syncLogId: SYNC_LOG_ID,
+      status: 'running',
+      lifecycleStatus: 'RUNNING',
+    });
 
     await new Promise((resolve) => setImmediate(resolve));
     await new Promise((resolve) => setTimeout(resolve, 20));
+  });
+
+  test('12. RateLimitError maps sync log status to rate_limited and releases lock', async () => {
+    const { RateLimitError } = require('../../../src/integrations/adapters/errors');
+    const syncUpdateSpy = jest.spyOn(prisma.syncLog, 'update').mockResolvedValue({});
+    jest.spyOn(adapterRegistry, 'getAdapter').mockReturnValue({
+      capabilities: () => ({ submissions: true, ratingHistory: true }),
+      fetchProfile: jest.fn().mockRejectedValue(new RateLimitError('codeforces', 'Call limit exceeded', 2000)),
+    });
+
+    syncService._activeSyncLocks.add(ACCOUNT_ID);
+    await syncService.executeSyncJob(SYNC_LOG_ID, {
+      id: ACCOUNT_ID,
+      platformName: 'codeforces',
+      username: 'tourist',
+      lastSynced: null,
+    });
+
+    expect(syncUpdateSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: { id: SYNC_LOG_ID },
+        data: expect.objectContaining({
+          status: 'rate_limited',
+          errorMessage: 'Call limit exceeded',
+        }),
+      })
+    );
+    expect(syncService._activeSyncLocks.has(ACCOUNT_ID)).toBe(false);
+  });
+
+  test('13. Sync trigger endpoints enforce per-user rate limiter returning 429 with Retry-After', async () => {
+    jest.spyOn(prisma.platformAccount, 'findUnique').mockResolvedValue(null);
+
+    const limit = Number(process.env.SYNC_RATE_LIMIT_MAX) || 10;
+    for (let i = 0; i < limit; i += 1) {
+      const okOrNotFound = await request(app)
+        .post(`/api/v1/sync/platform-accounts/${ACCOUNT_ID}`)
+        .set('Authorization', authHeader(USER_RATE_LIMITED));
+      expect(okOrNotFound.status).toBe(404);
+    }
+
+    const limitedRes = await request(app)
+      .post(`/api/v1/sync/platform-accounts/${ACCOUNT_ID}`)
+      .set('Authorization', authHeader(USER_RATE_LIMITED));
+
+    expect(limitedRes.status).toBe(429);
+    expect(limitedRes.body.error.code).toBe('RATE_LIMIT_EXCEEDED');
+    expect(limitedRes.headers['retry-after']).toBeDefined();
+
+    // Logs polling remains accessible even when trigger rate limit is active
+    jest.spyOn(prisma.syncLog, 'findMany').mockResolvedValue([]);
+    jest.spyOn(prisma.syncLog, 'count').mockResolvedValue(0);
+    const logsRes = await request(app)
+      .get('/api/v1/sync/logs')
+      .set('Authorization', authHeader(USER_RATE_LIMITED));
+    expect(logsRes.status).toBe(200);
   });
 });
