@@ -33,6 +33,12 @@
     "full-stack"
   ],
   "author": "CodeONE Team",
-  "license": "MIT"
+  "license": "MIT",
+  "allowScripts": {
+    "@prisma/client": true,
+    "@prisma/engines": true,
+    "prisma": true,
+    "argon2@0.41.1": true,
+    "esbuild": true
+  }
 }
-

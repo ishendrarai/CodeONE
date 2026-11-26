@@ -9,18 +9,29 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 
+function getAccessSecret() {
+  const secret = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET;
+  if (secret) return secret;
+  if (process.env.NODE_ENV === 'test') return 'test-only-access-secret';
+  throw new Error('JWT_ACCESS_SECRET (or JWT_SECRET) must be configured.');
+}
+
 function signAccessToken(payload) {
-  return jwt.sign(payload, process.env.JWT_SECRET || 'dev_secret', {
-    expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+  return jwt.sign(payload, getAccessSecret(), {
+    expiresIn: '15m',
   });
 }
 
 function verifyAccessToken(token) {
-  return jwt.verify(token, process.env.JWT_SECRET || 'dev_secret');
+  return jwt.verify(token, getAccessSecret(), { algorithms: ['HS256'] });
 }
 
 function generateRefreshToken() {
   return crypto.randomBytes(40).toString('hex');
+}
+
+function generateId() {
+  return crypto.randomUUID();
 }
 
 function hashToken(rawToken) {
@@ -31,5 +42,6 @@ module.exports = {
   signAccessToken,
   verifyAccessToken,
   generateRefreshToken,
+  generateId,
   hashToken,
 };

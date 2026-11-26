@@ -10,7 +10,11 @@ const Joi = require('joi');
 const registerSchema = Joi.object({
   name: Joi.string().trim().max(100).required(),
   email: Joi.string().email().lowercase().trim().required(),
-  password: Joi.string().min(8).max(128).required(),
+  password: Joi.string()
+    .min(12)
+    .max(128)
+    .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/)
+    .required(),
 });
 
 const loginSchema = Joi.object({
