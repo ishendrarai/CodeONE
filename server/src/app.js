@@ -46,6 +46,17 @@ app.use(passport.initialize());
 // Mount modular API under /api/v1
 app.use('/api/v1', routes);
 
+// 404 handler for unmatched routes in standard error format
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    error: {
+      code: 'NOT_FOUND',
+      message: `Route ${req.method} ${req.originalUrl} not found.`,
+    },
+  });
+});
+
 // Global centralized error handler (must be registered last)
 app.use(errorHandler);
 
