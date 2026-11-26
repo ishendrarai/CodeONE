@@ -191,12 +191,18 @@ Copy `.env.example` to `.env` in both `server/` and `client/` and set your own v
 |---|---|
 | `PORT` | API port |
 | `NODE_ENV` | `development` or `production` |
-| `CLIENT_URL` | Frontend origin (CORS and cookies) |
+| `CLIENT_URL` / `FRONTEND_URL` | Frontend origin (CORS and OAuth redirect) |
 | `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_ACCESS_SECRET` | Secret for access tokens |
-| `JWT_REFRESH_SECRET` | Secret for refresh tokens |
-| `COOKIE_SECRET` | Secret for signed cookies |
+| `JWT_ACCESS_SECRET` | Secret for 15-minute access tokens (`JWT_SECRET` is a legacy alias) |
+| `COOKIE_SECRET` | Cookie parser signing secret |
+| `OAUTH_CALLBACK_BASE_URL` | API auth base URL for Google/GitHub callbacks |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Optional Google OAuth credentials |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | Optional GitHub OAuth credentials |
 | `AI_API_KEY` | Key for the AI coach (optional; the coach is disabled without it) |
+
+Refresh tokens are opaque random values stored as SHA-256 hashes in the database; no
+refresh-token signing secret is required. See [API authentication docs](./docs/API.md)
+for endpoint shapes and security verification steps.
  
 **client**
  

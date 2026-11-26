@@ -9,6 +9,7 @@ const express = require('express');
 const router = express.Router();
 
 const authRoutes = require('./authRoutes');
+const adminRoutes = require('./adminRoutes');
 const userRoutes = require('./userRoutes');
 const platformAccountRoutes = require('./platformAccountRoutes');
 const problemRoutes = require('./problemRoutes');
@@ -21,6 +22,7 @@ const notificationRoutes = require('./notificationRoutes');
 const syncRoutes = require('./syncRoutes');
 
 router.use('/auth', authRoutes);
+router.use('/admin', adminRoutes);
 router.use('/users', userRoutes);
 router.use('/platform-accounts', platformAccountRoutes);
 router.use('/problems', problemRoutes);

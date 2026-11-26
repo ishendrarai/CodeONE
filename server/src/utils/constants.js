@@ -6,10 +6,10 @@
  */
 
 const ROLES = {
-  USER: 'user',
-  MODERATOR: 'moderator',
-  ADMIN: 'admin',
-  AUDITOR: 'auditor',
+  USER: 'USER',
+  MODERATOR: 'MODERATOR',
+  ADMIN: 'ADMIN',
+  AUDITOR: 'AUDITOR',
 };
 
 const PLATFORMS = {

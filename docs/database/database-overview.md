@@ -24,10 +24,10 @@ The CodeONE database architecture enforces four primary engineering invariants:
 
 | Logical Group # | Physical SQL Table Name | Primary Purpose & Key Responsibilities |
 |---|---|---|
-| **1. User Management** | `users` | Core accounts, password hash, role (`user`, `moderator`, `admin`, `auditor`), and settings JSONB. |
+| **1. User Management** | `users` | Core accounts, password hash, role (`USER`, `MODERATOR`, `ADMIN`, `AUDITOR`), failed-login lockout state, OAuth IDs, and settings JSONB. |
 | **2. Authentication & OAuth** | `oauth_accounts` | Third-party OAuth 2.0 identity bindings (`google`, `github`). |
 | **3. User Sessions** | `user_sessions` | Server-tracked session lifecycle with `family_id` for token reuse detection. |
-| **4. Refresh Tokens** | `refresh_tokens` | Rotating refresh tokens storing SHA-256 `token_hash` and `replaced_by` lineage. |
+| **4. Refresh Tokens** | `refresh_tokens` | Rotating refresh tokens storing SHA-256 `token_hash`, `user_id`, `family_id`, revocation state, expiry, and `replaced_by` lineage. |
 | **5. Platform Accounts** | `platform_accounts` | Linked coding handles, verification status (`unverified`, `pending`, `verified`, `failed`), and sync frequencies. |
 | **6. Problem Catalogue** | `problems` | Multi-platform problem catalogue with difficulty ratings and acceptance rates. |
 | **6. Problem Catalogue** | `tags` | Algorithmic topic taxonomy (23+ categories). |
@@ -66,19 +66,20 @@ The CodeONE database architecture enforces four primary engineering invariants:
 | `platform_accounts` | `sync_logs` | 1 : N | `sync_logs.platform_account_id` | **CASCADE** |
 | `users` | `goals` | 1 : N | `goals.user_id` | **CASCADE** |
 | `users` | `notifications` | 1 : N | `notifications.user_id` | **CASCADE** |
-| `users` | `audit_logs` | 1 : N | `audit_logs.actor_user_id` | **SET NULL** |
+| `users` | `audit_logs` | 1 : N | `audit_logs.user_id` | **SET NULL** |
 
 ---
 
 ## ⚡ 4. Indexing & Query Optimization Strategy
 
-The architecture incorporates 13 explicit B-tree indexes paired with 9 automatic UNIQUE indexes:
+The architecture incorporates 16 explicit B-tree indexes paired with 11 automatic UNIQUE indexes:
 
 * **`idx_submissions_account_time` (`platform_account_id`, `submitted_at DESC`):** Critical composite index accelerating timezone-aware global streak evaluations and 365-day heatmaps.
 * **`idx_user_problems_user_status` (`user_id`, `status`):** Accelerates dashboard solved counters and problem workspace filters.
 * **`idx_rating_history_account_time` (`platform_account_id`, `recorded_at`):** Powers chronological per-platform rating progression charts.
 * **`idx_contests_start` (`start_time`):** Optimizes upcoming contest countdown filtering (`WHERE start_time > now() ORDER BY start_time`).
 * **`idx_notifications_user_unread` (`user_id`, `read_at`):** Accelerates unread alert count lookups.
+* **`refresh_tokens_user_id_idx / refresh_tokens_family_id_idx`:** Accelerate user and token-family revocation lookups.
 * **`idx_audit_logs_actor / action / created_at`:** Dedicated indexes supporting security and compliance audits.
 
 ---
