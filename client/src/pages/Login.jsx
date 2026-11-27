@@ -1,35 +1,39 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Code2, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Eye, EyeOff, Code2, ShieldCheck } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
-  const [email, setEmail] = useState('karan.sharma@codeone.io');
-  const [password, setPassword] = useState('CodeONE2026!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { loginAsDemo } = useAuth();
+  const { login } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     if (!email || !password) {
       setError('Please provide both email and password.');
       return;
     }
+    setError('');
     setLoading(true);
-    setTimeout(() => {
-      loginAsDemo();
-      navigate('/dashboard');
-    }, 400);
-  };
-
-  const handleInstantDemo = () => {
-    loginAsDemo();
-    navigate('/dashboard');
+    try {
+      await login({ email, password });
+      navigate(location.state?.from || '/dashboard', { replace: true });
+    } catch (loginError) {
+      setError(
+        loginError.response?.data?.error?.message ||
+          'Unable to sign in. Check your credentials and try again.',
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -49,29 +53,6 @@ export default function Login() {
             <p className="text-xs text-ink-secondary mt-1">
               Enter your credentials to access your unified competitive programming profile.
             </p>
-          </div>
-
-          {/* Instant Demo Fast-Track Card */}
-          <div className="p-4 rounded-xl border border-accent-border bg-accent-subtle mb-6">
-            <div className="flex items-start gap-3">
-              <div className="p-1.5 rounded-lg bg-accent text-white shrink-0 mt-0.5">
-                <Sparkles size={14} />
-              </div>
-              <div className="flex-1">
-                <p className="text-xs font-semibold text-accent-dark">Instant College Presentation Demo</p>
-                <p className="text-[11px] text-ink-secondary mt-0.5">
-                  Pre-configured with Karan Sharma's verified Codeforces & AtCoder telemetry.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleInstantDemo}
-                  className="mt-2.5 text-xs font-semibold text-accent hover:underline flex items-center gap-1"
-                >
-                  <span>1-Click Launch Demo Profile</span>
-                  <ArrowRight size={12} />
-                </button>
-              </div>
-            </div>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
@@ -130,7 +111,7 @@ export default function Login() {
         </div>
 
         <div className="pt-6 border-t border-app-border flex items-center justify-between text-[11px] font-mono text-ink-muted">
-          <span>Demo Credentials: Pre-filled</span>
+          <span>Secure sign-in</span>
           <span className="flex items-center gap-1">
             <ShieldCheck size={12} className="text-verdict-ac" /> Zero Credential Sync
           </span>

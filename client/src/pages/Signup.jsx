@@ -1,27 +1,35 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Code2, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, Code2, ShieldCheck } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { useAuth } from '../context/AuthContext';
 
 export default function Signup() {
-  const [name, setName] = useState('Karan Sharma');
-  const [handle, setHandle] = useState('karan_cp');
-  const [email, setEmail] = useState('karan.sharma@codeone.io');
-  const [password, setPassword] = useState('CodeONE2026!');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { loginAsDemo } = useAuth();
+  const [error, setError] = useState('');
+  const { register } = useAuth();
   const navigate = useNavigate();
 
-  const handleSignup = (e) => {
+  const handleSignup = async (e) => {
     e.preventDefault();
+    setError('');
     setLoading(true);
-    setTimeout(() => {
-      loginAsDemo();
+    try {
+      await register({ name, email, password });
       navigate('/onboarding');
-    }, 400);
+    } catch (registrationError) {
+      setError(
+        registrationError.response?.data?.error?.message ||
+          'Unable to create your account. Please try again.',
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -43,6 +51,11 @@ export default function Signup() {
           </div>
 
           <form onSubmit={handleSignup} className="space-y-3.5">
+            {error && (
+              <div className="p-2.5 rounded-lg bg-verdict-wa-bg border border-verdict-wa-border text-verdict-wa text-xs">
+                {error}
+              </div>
+            )}
             <div>
               <label className="block text-xs font-semibold text-ink-secondary mb-1">Full Name</label>
               <Input
@@ -50,17 +63,6 @@ export default function Signup() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Karan Sharma"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-ink-secondary mb-1">Desired Username / Handle</label>
-              <Input
-                type="text"
-                value={handle}
-                onChange={(e) => setHandle(e.target.value)}
-                placeholder="e.g. karan_cp"
                 required
               />
             </div>
@@ -109,9 +111,9 @@ export default function Signup() {
         </div>
 
         <div className="pt-6 border-t border-app-border flex items-center justify-between text-[11px] font-mono text-ink-muted">
-          <span>Frontend Demo Simulation</span>
+          <span>Secure account registration</span>
           <span className="flex items-center gap-1">
-            <ShieldCheck size={12} className="text-verdict-ac" /> Zero Passwords Required
+            <ShieldCheck size={12} className="text-verdict-ac" /> Protected session
           </span>
         </div>
       </div>
