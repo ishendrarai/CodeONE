@@ -16,6 +16,7 @@ const { logAuditEvent } = require('./auditService');
 
 const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const LOCKOUT_MS = 15 * 60 * 1000;
+const AUTH_TRANSACTION_OPTIONS = { maxWait: 10000, timeout: 15000 };
 
 function authError(message, statusCode = 401, code = 'AUTHENTICATION_ERROR') {
   const error = new Error(message);
@@ -93,7 +94,7 @@ async function createSession(user, metadata = {}, transactionClient = null) {
   if (transactionClient) {
     await persistSession(transactionClient);
   } else {
-    await prisma.$transaction(persistSession);
+    await prisma.$transaction(persistSession, AUTH_TRANSACTION_OPTIONS);
   }
 
   return {
@@ -118,7 +119,7 @@ async function register(userData, metadata = {}) {
         },
       });
       return createSession(user, metadata, tx);
-    });
+    }, AUTH_TRANSACTION_OPTIONS);
     audit('SIGNUP', 'success', session.user.id, metadata);
     return session;
   } catch (err) {
@@ -196,7 +197,7 @@ async function login(credentials, metadata = {}) {
       data: { passwordHash, failedLoginAttempts: 0, lockUntil: null, lastLogin: now },
     });
     return createSession(updatedUser, metadata, tx);
-  });
+  }, AUTH_TRANSACTION_OPTIONS);
   audit('LOGIN_SUCCESS', 'success', user.id, metadata);
   return session;
 }
@@ -272,7 +273,7 @@ async function refreshSession(rawRefreshToken, metadata = {}) {
       data: { expiresAt: nextExpiresAt, lastSeenAt: now },
     });
     return { reused: false };
-  });
+  }, AUTH_TRANSACTION_OPTIONS);
 
   if (rotation.reused) {
     audit('TOKEN_REUSE_DETECTED', 'failure', token.userId, {
@@ -383,7 +384,7 @@ async function handleOAuthLogin(provider, profile, metadata = {}) {
 
     user = await tx.user.update({ where: { id: user.id }, data: { lastLogin: new Date() } });
     return createSession(user, metadata, tx);
-  });
+  }, AUTH_TRANSACTION_OPTIONS);
 
   audit('OAUTH_LOGIN', 'success', session.user.id, {
     ...metadata,

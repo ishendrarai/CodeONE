@@ -23,12 +23,41 @@ jest.mock('../../../src/services/auditService', () => ({
 }));
 
 const prisma = require('../../../src/config/database');
-const { verifyPassword } = require('../../../src/utils/password');
+const { hashPassword, verifyPassword } = require('../../../src/utils/password');
 const authService = require('../../../src/services/authService');
 
 describe('authService security controls', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('allows enough time to acquire and complete the signup transaction', async () => {
+    hashPassword.mockResolvedValue('hashed-password');
+    const session = {
+      user: {
+        id: 'user-id',
+        name: 'Astha Goswami',
+        email: 'astha@example.com',
+        role: 'USER',
+        avatarUrl: null,
+      },
+      accessToken: 'access-token',
+      refreshToken: 'refresh-token',
+    };
+    prisma.$transaction.mockResolvedValue(session);
+
+    await expect(
+      authService.register({
+        name: 'Astha Goswami',
+        email: 'astha@example.com',
+        password: 'StrongPass123!',
+      }),
+    ).resolves.toEqual(session);
+
+    expect(prisma.$transaction).toHaveBeenCalledWith(
+      expect.any(Function),
+      { maxWait: 10000, timeout: 15000 },
+    );
   });
 
   it('locks the account on the fifth failed password attempt', async () => {

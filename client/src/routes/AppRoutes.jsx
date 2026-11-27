@@ -1,10 +1,12 @@
 import React, { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import AppShell from '../components/layout/AppShell';
+import AppShell from '../components/AppShell';
+import ProtectedRoute from '../components/ProtectedRoute';
 
 const Landing = lazy(() => import('../pages/Landing'));
-const Login = lazy(() => import('../pages/Login'));
-const Signup = lazy(() => import('../pages/Signup'));
+const LoginPage = lazy(() => import('../pages/LoginPage'));
+const RegisterPage = lazy(() => import('../pages/RegisterPage'));
+const OAuthCallbackPage = lazy(() => import('../pages/OAuthCallbackPage'));
 const Onboarding = lazy(() => import('../pages/Onboarding'));
 const Dashboard = lazy(() => import('../pages/Dashboard'));
 const Problems = lazy(() => import('../pages/Problems'));
@@ -27,9 +29,10 @@ export default function AppRoutes() {
       <Routes>
         {/* Public Landing & Marketing */}
         <Route path="/" element={<Landing />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route path="/register" element={<Navigate to="/signup" replace />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/signup" element={<Navigate to="/register" replace />} />
+        <Route path="/auth/callback" element={<OAuthCallbackPage />} />
         <Route path="/onboarding" element={<Onboarding />} />
 
         {/* Public Shareable Profile Card */}
@@ -37,14 +40,16 @@ export default function AppRoutes() {
         <Route path="/profile" element={<Navigate to="/u/karan_cp" replace />} />
 
         {/* Authenticated Workspace App Shell */}
-        <Route element={<AppShell />}>
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/problems" element={<Problems />} />
-          <Route path="/analytics" element={<Analytics />} />
-          <Route path="/contests" element={<Contests />} />
-          <Route path="/goals" element={<Goals />} />
-          <Route path="/coach" element={<Coach />} />
-          <Route path="/settings" element={<Settings />} />
+        <Route element={<ProtectedRoute />}>
+          <Route element={<AppShell />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/problems" element={<Problems />} />
+            <Route path="/analytics" element={<Analytics />} />
+            <Route path="/contests" element={<Contests />} />
+            <Route path="/goals" element={<Goals />} />
+            <Route path="/coach" element={<Coach />} />
+            <Route path="/settings" element={<Settings />} />
+          </Route>
         </Route>
 
         {/* Catch-all 404 Route */}
