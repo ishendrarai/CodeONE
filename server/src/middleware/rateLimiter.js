@@ -7,30 +7,26 @@
  */
 
 const { ERROR_CODES } = require('../utils/constants');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 
-// Lightweight in-process rate limiter skeleton
 function createRateLimiter(options = {}) {
-  const windowMs = options.windowMs || 15 * 60 * 1000;
-  const max = options.max || 100;
-  const hits = new Map();
+  const windowMs = options.windowMs || Number(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000;
+  const limit = options.max || Number(process.env.RATE_LIMIT_MAX_REQUESTS) || 100;
 
-  return (req, res, next) => {
-    const key = req.ip || req.connection.remoteAddress || 'unknown_ip';
-    const now = Date.now();
-    const record = hits.get(key) || { count: 0, resetTime: now + windowMs };
+  return rateLimit({
+    windowMs,
+    limit,
+    skipSuccessfulRequests: Boolean(options.skipSuccessfulRequests),
+    ...(typeof options.keyGenerator === 'function' ? { keyGenerator: options.keyGenerator } : {}),
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    handler: (req, res) => {
+      const resetMs = req.rateLimit?.resetTime
+        ? new Date(req.rateLimit.resetTime).getTime() - Date.now()
+        : windowMs;
+      const retryAfterSeconds = Math.max(1, Math.ceil(resetMs / 1000));
+      res.set('Retry-After', String(retryAfterSeconds));
 
-    if (now > record.resetTime) {
-      record.count = 1;
-      record.resetTime = now + windowMs;
-    } else {
-      record.count += 1;
-    }
-
-    hits.set(key, record);
-
-    if (record.count > max) {
-      const retryAfterSeconds = Math.ceil((record.resetTime - now) / 1000);
-      res.setHeader('Retry-After', retryAfterSeconds);
       return res.status(429).json({
         success: false,
         error: {
@@ -38,23 +34,27 @@ function createRateLimiter(options = {}) {
           message: 'Too many requests, please try again later.',
         },
       });
-    }
-
-    next();
-  };
+    },
+  });
 }
 
 const authLimiter = createRateLimiter({
-  windowMs: 60 * 1000, // 1 minute
-  max: 5,
+  windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+  max: Number(process.env.AUTH_RATE_LIMIT_MAX) || 20,
+  skipSuccessfulRequests: true,
 });
 
-const generalLimiter = createRateLimiter({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
+const syncLimiter = createRateLimiter({
+  windowMs: Number(process.env.SYNC_RATE_LIMIT_WINDOW_MS) || 60 * 1000,
+  max: Number(process.env.SYNC_RATE_LIMIT_MAX) || 10,
+  keyGenerator: (req) => (req.user?.sub ? `user:${req.user.sub}` : ipKeyGenerator(req.ip)),
 });
+
+const generalLimiter = createRateLimiter({});
 
 module.exports = {
+  createRateLimiter,
   authLimiter,
+  syncLimiter,
   generalLimiter,
 };

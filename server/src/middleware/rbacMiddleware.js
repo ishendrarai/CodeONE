@@ -8,7 +8,8 @@
 
 const { ERROR_CODES } = require('../utils/constants');
 
-function requireRole(...allowedRoles) {
+function authorizeRoles(...allowedRoles) {
+  const normalizedAllowedRoles = allowedRoles.map((role) => role.toUpperCase());
   return (req, res, next) => {
     if (!req.user || !req.user.role) {
       return res.status(401).json({
@@ -20,7 +21,7 @@ function requireRole(...allowedRoles) {
       });
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
+    if (!normalizedAllowedRoles.includes(String(req.user.role).toUpperCase())) {
       return res.status(403).json({
         success: false,
         error: {
@@ -34,5 +35,7 @@ function requireRole(...allowedRoles) {
   };
 }
 
-module.exports = requireRole;
+module.exports = authorizeRoles;
+module.exports.authorizeRoles = authorizeRoles;
+module.exports.requireRole = authorizeRoles;
 

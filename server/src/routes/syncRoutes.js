@@ -9,12 +9,20 @@ const express = require('express');
 const router = express.Router();
 const syncController = require('../controllers/syncController');
 const authMiddleware = require('../middleware/authMiddleware');
+const { syncLimiter } = require('../middleware/rateLimiter');
+const validate = require('../middleware/validationMiddleware');
+const { uuidParamSchema, syncLogsQuerySchema } = require('../utils/validators');
 
 router.use(authMiddleware);
 
-router.post('/platform-accounts', syncController.syncAllAccounts);
-router.post('/platform-accounts/:id', syncController.syncAccount);
-router.get('/logs', syncController.getLogs);
+router.post('/platform-accounts', syncLimiter, syncController.syncAllAccounts);
+router.post(
+  '/platform-accounts/:id',
+  syncLimiter,
+  validate(uuidParamSchema, 'params'),
+  syncController.syncAccount
+);
+router.get('/logs', validate(syncLogsQuerySchema, 'query'), syncController.getLogs);
 
 module.exports = router;
 

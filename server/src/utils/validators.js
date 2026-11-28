@@ -10,7 +10,11 @@ const Joi = require('joi');
 const registerSchema = Joi.object({
   name: Joi.string().trim().max(100).required(),
   email: Joi.string().email().lowercase().trim().required(),
-  password: Joi.string().min(8).max(128).required(),
+  password: Joi.string()
+    .min(12)
+    .max(128)
+    .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/)
+    .required(),
 });
 
 const loginSchema = Joi.object({
@@ -20,7 +24,45 @@ const loginSchema = Joi.object({
 
 const platformAccountSchema = Joi.object({
   platform: Joi.string().valid('codeforces', 'atcoder', 'codewars').required(),
-  username: Joi.string().trim().max(100).required(),
+  username: Joi.string()
+    .trim()
+    .min(2)
+    .max(100)
+    .pattern(/^[a-zA-Z0-9_.-]+$/)
+    .required()
+    .messages({
+      'string.pattern.base': 'Handle may only contain letters, numbers, underscores, hyphens, and dots.',
+    }),
+});
+
+const uuidParamSchema = Joi.object({
+  id: Joi.string().uuid().required(),
+});
+
+const verifyPlatformAccountSchema = Joi.object({
+  verificationCode: Joi.string().trim().min(6).max(64).optional(),
+  action: Joi.string().valid('initiate', 'verify').optional(),
+  regenerate: Joi.boolean().optional(),
+});
+
+const syncLogsQuerySchema = Joi.object({
+  platformAccountId: Joi.string().uuid().optional(),
+  status: Joi.string()
+    .valid(
+      'pending',
+      'running',
+      'success',
+      'partial',
+      'failed',
+      'rate_limited',
+      'PENDING',
+      'RUNNING',
+      'COMPLETED',
+      'FAILED'
+    )
+    .optional(),
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(100).default(20),
 });
 
 const userProblemUpdateSchema = Joi.object({
@@ -50,6 +92,9 @@ module.exports = {
   registerSchema,
   loginSchema,
   platformAccountSchema,
+  uuidParamSchema,
+  verifyPlatformAccountSchema,
+  syncLogsQuerySchema,
   userProblemUpdateSchema,
   goalSchema,
   userProfileUpdateSchema,
