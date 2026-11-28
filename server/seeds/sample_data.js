@@ -1,13 +1,14 @@
 /**
  * seeds/sample_data.js
  * Layer: Database & Seeding
- * Responsibility: Development seed script populating initial algorithmic tags,
- *                 test users (4 roles: user, moderator, admin, auditor), sample problems,
- *                 and contest calendar entries.
+ * Responsibility: Development seed script populating initial algorithmic tags
+ *                 and test users (4 roles: user, moderator, admin, auditor).
  * Interaction: Executed via `npm run seed --workspace=server`.
  */
 
 const { PrismaClient } = require('@prisma/client');
+const { hashPassword } = require('../src/utils/password');
+
 const prisma = new PrismaClient();
 
 const ALGORITHMIC_TAGS = [
@@ -36,11 +37,42 @@ const ALGORITHMIC_TAGS = [
   { name: 'geometry', category: 'Mathematics' },
 ];
 
+const TEST_USERS = [
+  {
+    name: 'Test User',
+    email: 'user@codeone.local',
+    role: 'USER',
+    emailVerified: true,
+    settings: { timezone: 'Asia/Kolkata', theme: 'dark' },
+  },
+  {
+    name: 'Test Moderator',
+    email: 'moderator@codeone.local',
+    role: 'MODERATOR',
+    emailVerified: true,
+    settings: { timezone: 'UTC', theme: 'dark' },
+  },
+  {
+    name: 'Test Admin',
+    email: 'admin@codeone.local',
+    role: 'ADMIN',
+    emailVerified: true,
+    settings: { timezone: 'UTC', theme: 'dark' },
+  },
+  {
+    name: 'Test Auditor',
+    email: 'auditor@codeone.local',
+    role: 'AUDITOR',
+    emailVerified: true,
+    settings: { timezone: 'UTC', theme: 'light' },
+  },
+];
+
 async function seed() {
   console.log('=== Starting CodeONE Development Database Seeding ===');
 
   try {
-    // 1. Seed Algorithmic Tags
+    // 1. Seed Algorithmic Tags (idempotent)
     console.log(`Seeding ${ALGORITHMIC_TAGS.length} algorithmic tags...`);
     for (const tag of ALGORITHMIC_TAGS) {
       await prisma.tag.upsert({
@@ -50,9 +82,28 @@ async function seed() {
       });
     }
 
+    // 2. Seed Test Users across all 4 RBAC roles (idempotent)
+    console.log(`Seeding ${TEST_USERS.length} test users...`);
+    const defaultPasswordHash = await hashPassword('CodeONE@Test123');
+    for (const user of TEST_USERS) {
+      await prisma.user.upsert({
+        where: { email: user.email },
+        update: {
+          name: user.name,
+          role: user.role,
+          emailVerified: user.emailVerified,
+        },
+        create: {
+          ...user,
+          passwordHash: defaultPasswordHash,
+        },
+      });
+    }
+
     console.log('=== Seeding completed successfully ===');
   } catch (error) {
-    console.warn('Seeding notice (database connectivity required for full population):', error.message);
+    console.error('Seeding failed:', error.message);
+    process.exitCode = 1;
   } finally {
     await prisma.$disconnect();
   }
