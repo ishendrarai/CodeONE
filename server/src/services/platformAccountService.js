@@ -10,7 +10,7 @@
 
 const crypto = require('crypto');
 const prisma = require('../config/database');
-const adapterRegistry = require('../integrations/adapters');
+const adapterRegistry = require('./../integrations/adapters/registry');
 const { logSecurityEvent } = require('./auditService');
 const { ERROR_CODES } = require('../utils/constants');
 
@@ -32,7 +32,7 @@ const SAFE_ACCOUNT_SELECT = {
 
 const ACCOUNT_WITH_CHALLENGE_SELECT = {
   ...SAFE_ACCOUNT_SELECT,
-  verificationToken: true,
+  verificationTokenHash: true,
   verificationExpiresAt: true,
 };
 
@@ -46,25 +46,29 @@ function createServiceError(message, statusCode, code, details) {
 
 function toSafeAccount(record) {
   if (!record) return record;
-  const { verificationToken: _token, verificationExpiresAt: _exp, ...safeAccount } = record;
+  const { verificationTokenHash: _tokenHash, verificationExpiresAt: _exp, ...safeAccount } = record;
   return safeAccount;
 }
 
 function generateChallengeCode() {
-  const token = crypto.randomBytes(6).toString('hex').toUpperCase();
-  return `CODEONE-VERIFY-${token}`;
+  return crypto.randomBytes(32).toString('hex');
 }
 
-function codesMatch(expectedCode, providedCode) {
-  if (typeof expectedCode !== 'string' || typeof providedCode !== 'string') {
+function hashChallengeCode(challengeCode) {
+  return crypto.createHash('sha256').update(challengeCode.trim()).digest('hex');
+}
+
+function codesMatch(expectedHash, providedCode) {
+  if (
+    typeof expectedHash !== 'string' ||
+    !/^[a-f0-9]{64}$/i.test(expectedHash) ||
+    typeof providedCode !== 'string'
+  ) {
     return false;
   }
-  const normalizedExpected = Buffer.from(expectedCode.trim().toUpperCase(), 'utf8');
-  const normalizedProvided = Buffer.from(providedCode.trim().toUpperCase(), 'utf8');
-  if (normalizedExpected.length !== normalizedProvided.length) {
-    return false;
-  }
-  return crypto.timingSafeEqual(normalizedExpected, normalizedProvided);
+  const expected = Buffer.from(expectedHash, 'hex');
+  const provided = Buffer.from(hashChallengeCode(providedCode), 'hex');
+  return crypto.timingSafeEqual(expected, provided);
 }
 
 function buildVerificationInstructions(platformName, handle, challengeCode, expiresAt) {
@@ -81,7 +85,8 @@ function buildVerificationInstructions(platformName, handle, challengeCode, expi
 }
 
 function normalizePlatformHandle(adapter, platformName, rawHandle) {
-  const trimmed = adapter.normalizeHandle(rawHandle);
+  const trimmed =
+    typeof adapter.normalizeHandle === 'function' ? adapter.normalizeHandle(rawHandle) : rawHandle.trim();
   if (platformName === 'codeforces') {
     if (!/^[a-zA-Z0-9_.-]{3,24}$/.test(trimmed)) {
       throw createServiceError(
@@ -126,7 +131,15 @@ async function getLinkedAccounts(userId) {
 
 async function linkAccount(userId, platform, username) {
   const platformName = typeof platform === 'string' ? platform.trim().toLowerCase() : '';
-  const adapter = adapterRegistry.getAdapter(platformName);
+  const adapter = adapterRegistry.getPlatformAdapter(platformName);
+  const capabilities = adapter.capabilities();
+  if (!capabilities.profile || !capabilities.ownershipChallenge) {
+    throw createServiceError(
+      'This platform does not support account verification.',
+      400,
+      ERROR_CODES.VALIDATION_ERROR
+    );
+  }
   const normalizedHandle = normalizePlatformHandle(adapter, platformName, username);
 
   // Prevent linking a second account for the same platform by the same user
@@ -173,7 +186,7 @@ async function linkAccount(userId, platform, username) {
         platformName,
         username: normalizedHandle,
         verificationStatus: 'unverified',
-        verificationToken: challengeCode,
+        verificationTokenHash: hashChallengeCode(challengeCode),
         verificationExpiresAt: expiresAt,
       },
       select: SAFE_ACCOUNT_SELECT,
@@ -201,6 +214,9 @@ async function linkAccount(userId, platform, username) {
   });
 
   return {
+    ...account,
+    verificationCode: challengeCode,
+    verificationExpiresAt: expiresAt.toISOString(),
     account,
     verification,
   };
@@ -209,30 +225,34 @@ async function linkAccount(userId, platform, username) {
 async function verifyAccountOwnership(userId, accountId, payload = {}) {
   const options = typeof payload === 'string' ? { verificationCode: payload } : payload || {};
 
-  const accountRecord = await prisma.platformAccount.findUnique({
-    where: { id: accountId },
-    select: ACCOUNT_WITH_CHALLENGE_SELECT,
+  let accountRecord = await prisma.platformAccount.findFirst({
+    where: { id: accountId, userId },
   });
+  if (!accountRecord && typeof prisma.platformAccount.findUnique === 'function') {
+    const existing = await prisma.platformAccount.findUnique({
+      where: { id: accountId },
+      select: ACCOUNT_WITH_CHALLENGE_SELECT,
+    });
+    if (existing && existing.userId !== userId) {
+      await logSecurityEvent({
+        actorUserId: userId,
+        actorRole: 'user',
+        action: 'PLATFORM_ACCOUNT_VERIFY_IDOR_BLOCKED',
+        resourceType: 'platform_account',
+        resourceId: accountId,
+        status: 'denied',
+      });
+      throw createServiceError(
+        'You do not have permission to access this platform account.',
+        403,
+        ERROR_CODES.AUTHORIZATION_ERROR
+      );
+    }
+    accountRecord = existing;
+  }
 
   if (!accountRecord) {
     throw createServiceError('Platform account not found.', 404, ERROR_CODES.NOT_FOUND);
-  }
-
-  // Strict IDOR protection
-  if (accountRecord.userId !== userId) {
-    await logSecurityEvent({
-      actorUserId: userId,
-      actorRole: 'user',
-      action: 'PLATFORM_ACCOUNT_VERIFY_IDOR_BLOCKED',
-      resourceType: 'platform_account',
-      resourceId: accountId,
-      status: 'denied',
-    });
-    throw createServiceError(
-      'You do not have permission to access this platform account.',
-      403,
-      ERROR_CODES.AUTHORIZATION_ERROR
-    );
   }
 
   if (accountRecord.verificationStatus === 'verified') {
@@ -247,10 +267,7 @@ async function verifyAccountOwnership(userId, accountId, payload = {}) {
   const shouldInitiate =
     options.action === 'initiate' ||
     options.regenerate === true ||
-    (!options.verificationCode &&
-      options.action !== 'verify' &&
-      !accountRecord.verificationToken &&
-      accountRecord.verificationStatus === 'unverified');
+    (!options.verificationCode && options.action !== 'verify');
 
   if (shouldInitiate) {
     const challengeCode = generateChallengeCode();
@@ -260,7 +277,7 @@ async function verifyAccountOwnership(userId, accountId, payload = {}) {
       where: { id: accountId },
       data: {
         verificationStatus: 'pending',
-        verificationToken: challengeCode,
+        verificationTokenHash: hashChallengeCode(challengeCode),
         verificationExpiresAt: expiresAt,
       },
       select: SAFE_ACCOUNT_SELECT,
@@ -286,10 +303,17 @@ async function verifyAccountOwnership(userId, accountId, payload = {}) {
       expiresAt
     );
 
-    return { account: toSafeAccount(updatedPending), verification };
+    const safeAccount = toSafeAccount(updatedPending);
+    return {
+      ...safeAccount,
+      verificationCode: challengeCode,
+      verificationExpiresAt: expiresAt.toISOString(),
+      account: safeAccount,
+      verification,
+    };
   }
 
-  if (accountRecord.verifiedAt && !accountRecord.verificationToken) {
+  if (accountRecord.verifiedAt && !accountRecord.verificationTokenHash) {
     throw createServiceError(
       'Verification code has already been used. Request a new verification code.',
       409,
@@ -297,7 +321,7 @@ async function verifyAccountOwnership(userId, accountId, payload = {}) {
     );
   }
 
-  if (!accountRecord.verificationToken || !accountRecord.verificationExpiresAt) {
+  if (!accountRecord.verificationTokenHash || !accountRecord.verificationExpiresAt) {
     throw createServiceError(
       'No active verification challenge found. Request a new verification code.',
       400,
@@ -310,21 +334,21 @@ async function verifyAccountOwnership(userId, accountId, payload = {}) {
     await prisma.platformAccount.update({
       where: { id: accountId },
       data: {
-        verificationStatus: 'failed',
-        verificationToken: null,
+        verificationStatus: 'unverified',
+        verificationTokenHash: null,
         verificationExpiresAt: null,
       },
     });
     throw createServiceError(
       'Verification code has expired. Please request a new verification code.',
-      410,
-      ERROR_CODES.VALIDATION_ERROR
+      409,
+      ERROR_CODES.CONFLICT
     );
   }
 
   if (
     options.verificationCode &&
-    !codesMatch(accountRecord.verificationToken, options.verificationCode)
+    !codesMatch(accountRecord.verificationTokenHash, options.verificationCode)
   ) {
     throw createServiceError(
       'Incorrect verification code provided.',
@@ -332,13 +356,58 @@ async function verifyAccountOwnership(userId, accountId, payload = {}) {
       ERROR_CODES.VALIDATION_ERROR
     );
   }
+  if (!options.verificationCode) {
+    throw createServiceError(
+      'A verification code is required.',
+      400,
+      ERROR_CODES.VALIDATION_ERROR
+    );
+  }
 
-  // Retrieve public profile & verify challenge code via isolated PlatformAdapter
-  const adapter = adapterRegistry.getAdapter(accountRecord.platformName);
-  const verificationOutcome = await adapter.verifyOwnership(
-    accountRecord.username,
-    accountRecord.verificationToken
-  );
+  const claim = await prisma.platformAccount.updateMany({
+    where: {
+      id: accountId,
+      userId,
+      verificationTokenHash: accountRecord.verificationTokenHash,
+      verificationExpiresAt: { gt: new Date() },
+    },
+    data: {
+      verificationStatus: 'pending',
+      verificationTokenHash: null,
+      verificationExpiresAt: null,
+    },
+  });
+  if (claim.count !== 1) {
+    throw createServiceError(
+      'Verification code is expired or has already been used.',
+      409,
+      ERROR_CODES.CONFLICT
+    );
+  }
+
+  const adapter = adapterRegistry.getPlatformAdapter(accountRecord.platformName);
+  let verificationOutcome;
+  try {
+    verificationOutcome = await adapter.verifyOwnership(
+      accountRecord.username,
+      options.verificationCode
+    );
+  } catch (err) {
+    await prisma.platformAccount.updateMany({
+      where: {
+        id: accountId,
+        userId,
+        verificationStatus: 'pending',
+        verificationTokenHash: null,
+      },
+      data: {
+        verificationStatus: accountRecord.verificationStatus,
+        verificationTokenHash: accountRecord.verificationTokenHash,
+        verificationExpiresAt: accountRecord.verificationExpiresAt,
+      },
+    });
+    throw err;
+  }
   const isOwner =
     typeof verificationOutcome === 'boolean'
       ? verificationOutcome
@@ -400,7 +469,7 @@ async function verifyAccountOwnership(userId, accountId, payload = {}) {
       data: {
         username: canonicalUsername,
         verificationStatus: 'verified',
-        verificationToken: null,
+        verificationTokenHash: null,
         verificationExpiresAt: null,
         verifiedAt: new Date(),
         rating: profileSnapshot.rating ?? accountRecord.rating,
@@ -426,6 +495,7 @@ async function verifyAccountOwnership(userId, accountId, payload = {}) {
   });
 
   return {
+    ...toSafeAccount(updatedAccount),
     account: toSafeAccount(updatedAccount),
     verified: true,
   };

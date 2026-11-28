@@ -10,6 +10,7 @@
 const request = require('supertest');
 const app = require('../../../src/app');
 const prisma = require('../../../src/config/database');
+const crypto = require('crypto');
 const { signAccessToken } = require('../../../src/utils/jwt');
 const adapterRegistry = require('../../../src/integrations/adapters');
 const { SourceUnavailableError } = require('../../../src/integrations/adapters/errors');
@@ -17,6 +18,10 @@ const { SourceUnavailableError } = require('../../../src/integrations/adapters/e
 const USER_A = '11111111-1111-4111-8111-111111111111';
 const USER_B = '22222222-2222-4222-8222-222222222222';
 const ACCOUNT_ID = '33333333-3333-4333-8333-333333333333';
+
+function hashChallenge(code) {
+  return crypto.createHash('sha256').update(code).digest('hex');
+}
 
 function authHeader(userId = USER_A) {
   const token = signAccessToken({
@@ -31,6 +36,8 @@ function authHeader(userId = USER_A) {
 describe('P1 Platform Account Linking & Verification APIs (/api/v1/platform-accounts)', () => {
   beforeEach(() => {
     jest.spyOn(prisma.auditLog, 'create').mockResolvedValue({});
+    jest.spyOn(prisma.platformAccount, 'findFirst').mockResolvedValue(null);
+    jest.spyOn(prisma.platformAccount, 'updateMany').mockResolvedValue({ count: 1 });
   });
 
   afterEach(() => {
@@ -123,14 +130,16 @@ describe('P1 Platform Account Linking & Verification APIs (/api/v1/platform-acco
           platformName: 'codeforces',
           username: 'tourist',
           verificationStatus: 'unverified',
-          verificationToken: expect.stringMatching(/^CODEONE-VERIFY-[0-9A-F]{12}$/),
+          verificationTokenHash: expect.stringMatching(/^[a-f0-9]{64}$/),
           verificationExpiresAt: expect.any(Date),
         }),
       })
     );
     expect(res.body.data.account.verificationStatus).toBe('unverified');
-    expect(res.body.data.account.verificationToken).toBeUndefined();
-    expect(res.body.data.verification.challengeCode).toMatch(/^CODEONE-VERIFY-[0-9A-F]{12}$/);
+    expect(res.body.data.account.verificationTokenHash).toBeUndefined();
+    expect(res.body.data.verificationCode).toMatch(/^[a-f0-9]{64}$/);
+    expect(createSpy.mock.calls[0][0].data.verificationTokenHash).not.toBe(res.body.data.verificationCode);
+    expect(res.body.data.verification.challengeCode).toBe(res.body.data.verificationCode);
     expect(res.body.data.verification.instructions).toContain('Never share passwords or cookies');
   });
 
@@ -141,7 +150,7 @@ describe('P1 Platform Account Linking & Verification APIs (/api/v1/platform-acco
       platformName: 'codeforces',
       username: 'benq',
       verificationStatus: 'unverified',
-      verificationToken: 'CODEONE-VERIFY-OLD000000000',
+      verificationTokenHash: hashChallenge('old-code'),
       verificationExpiresAt: new Date(Date.now() + 60000),
       verifiedAt: null,
       rating: null,
@@ -169,13 +178,13 @@ describe('P1 Platform Account Linking & Verification APIs (/api/v1/platform-acco
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data.account.verificationStatus).toBe('pending');
-    expect(res.body.data.verification.challengeCode).toMatch(/^CODEONE-VERIFY-[0-9A-F]{12}$/);
+    expect(res.body.data.verification.challengeCode).toMatch(/^[a-f0-9]{64}$/);
     expect(updateSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: ACCOUNT_ID },
         data: expect.objectContaining({
           verificationStatus: 'pending',
-          verificationToken: res.body.data.verification.challengeCode,
+          verificationTokenHash: hashChallenge(res.body.data.verification.challengeCode),
           verificationExpiresAt: expect.any(Date),
         }),
       })
@@ -190,7 +199,7 @@ describe('P1 Platform Account Linking & Verification APIs (/api/v1/platform-acco
       platformName: 'codeforces',
       username: 'um_nik',
       verificationStatus: 'pending',
-      verificationToken: activeToken,
+      verificationTokenHash: hashChallenge(activeToken),
       verificationExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
       verifiedAt: null,
       rating: null,
@@ -240,7 +249,7 @@ describe('P1 Platform Account Linking & Verification APIs (/api/v1/platform-acco
         data: expect.objectContaining({
           username: 'Um_nik',
           verificationStatus: 'verified',
-          verificationToken: null,
+          verificationTokenHash: null,
           verificationExpiresAt: null,
           rating: 3450,
           rank: 'legendary grandmaster',
@@ -249,7 +258,7 @@ describe('P1 Platform Account Linking & Verification APIs (/api/v1/platform-acco
     );
   });
 
-  test('6. Confirmation with empty body uses persisted DB verificationToken across requests', async () => {
+  test('6. Empty verification request issues a new challenge', async () => {
     const activeToken = 'CODEONE-VERIFY-DB1122334455';
     jest.spyOn(prisma.platformAccount, 'findUnique').mockResolvedValue({
       id: ACCOUNT_ID,
@@ -257,37 +266,19 @@ describe('P1 Platform Account Linking & Verification APIs (/api/v1/platform-acco
       platformName: 'codeforces',
       username: 'tourist',
       verificationStatus: 'pending',
-      verificationToken: activeToken,
+      verificationTokenHash: hashChallenge(activeToken),
       verificationExpiresAt: new Date(Date.now() + 5 * 60 * 1000),
       verifiedAt: null,
       rating: null,
       rank: null,
     });
 
-    const verifyMock = jest.fn().mockResolvedValue({
-      verified: true,
-      canonicalHandle: 'tourist',
-      profileSnapshot: { rating: 3700, rank: 'legendary grandmaster' },
-    });
-
-    jest.spyOn(adapterRegistry, 'getAdapter').mockReturnValue({
-      verifyOwnership: verifyMock,
-      fetchProfile: jest.fn().mockResolvedValue({
-        canonicalHandle: 'tourist',
-        rating: 3700,
-        rank: 'legendary grandmaster',
-      }),
-    });
-
-    jest.spyOn(prisma.platformAccount, 'update').mockResolvedValue({
+    const updateSpy = jest.spyOn(prisma.platformAccount, 'update').mockResolvedValue({
       id: ACCOUNT_ID,
       userId: USER_A,
       platformName: 'codeforces',
       username: 'tourist',
-      verificationStatus: 'verified',
-      verifiedAt: new Date().toISOString(),
-      rating: 3700,
-      rank: 'legendary grandmaster',
+      verificationStatus: 'pending',
     });
 
     const res = await request(app)
@@ -296,7 +287,12 @@ describe('P1 Platform Account Linking & Verification APIs (/api/v1/platform-acco
       .send({});
 
     expect(res.status).toBe(200);
-    expect(verifyMock).toHaveBeenCalledWith('tourist', activeToken);
+    expect(res.body.data.verificationCode).toMatch(/^[a-f0-9]{64}$/);
+    expect(updateSpy).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        verificationTokenHash: hashChallenge(res.body.data.verificationCode),
+      }),
+    }));
   });
 
   test('7. Incorrect verification code is rejected with 400', async () => {
@@ -306,7 +302,7 @@ describe('P1 Platform Account Linking & Verification APIs (/api/v1/platform-acco
       platformName: 'codeforces',
       username: 'tourist',
       verificationStatus: 'pending',
-      verificationToken: 'CODEONE-VERIFY-ABCDEF123456',
+      verificationTokenHash: hashChallenge('CODEONE-VERIFY-ABCDEF123456'),
       verificationExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
       verifiedAt: null,
     });
@@ -328,7 +324,7 @@ describe('P1 Platform Account Linking & Verification APIs (/api/v1/platform-acco
       platformName: 'codeforces',
       username: 'tourist',
       verificationStatus: 'pending',
-      verificationToken: activeToken,
+      verificationTokenHash: hashChallenge(activeToken),
       verificationExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
       verifiedAt: null,
     });
@@ -360,7 +356,7 @@ describe('P1 Platform Account Linking & Verification APIs (/api/v1/platform-acco
       platformName: 'codeforces',
       username: 'tourist',
       verificationStatus: 'pending',
-      verificationToken: expiredToken,
+      verificationTokenHash: hashChallenge(expiredToken),
       verificationExpiresAt: new Date(Date.now() - 1000),
       verifiedAt: null,
     });
@@ -371,13 +367,13 @@ describe('P1 Platform Account Linking & Verification APIs (/api/v1/platform-acco
       .set('Authorization', authHeader(USER_A))
       .send({ verificationCode: expiredToken });
 
-    expect(verifyRes.status).toBe(410);
+    expect(verifyRes.status).toBe(409);
     expect(verifyRes.body.error.message).toMatch(/expired/i);
     expect(updateSpy).toHaveBeenCalledWith({
       where: { id: ACCOUNT_ID },
       data: {
-        verificationStatus: 'failed',
-        verificationToken: null,
+        verificationStatus: 'unverified',
+        verificationTokenHash: null,
         verificationExpiresAt: null,
       },
     });
@@ -390,7 +386,7 @@ describe('P1 Platform Account Linking & Verification APIs (/api/v1/platform-acco
       platformName: 'codeforces',
       username: 'tourist',
       verificationStatus: 'verified',
-      verificationToken: null,
+      verificationTokenHash: null,
       verificationExpiresAt: null,
       verifiedAt: new Date(),
     });
@@ -425,7 +421,7 @@ describe('P1 Platform Account Linking & Verification APIs (/api/v1/platform-acco
       platformName: 'codeforces',
       username: 'tourist',
       verificationStatus: 'pending',
-      verificationToken: 'CODEONE-VERIFY-ABCDEF123456',
+      verificationTokenHash: hashChallenge('CODEONE-VERIFY-ABCDEF123456'),
       verificationExpiresAt: new Date(Date.now() + 60000),
       verifiedAt: null,
     });
@@ -470,7 +466,7 @@ describe('P1 Platform Account Linking & Verification APIs (/api/v1/platform-acco
       platformName: 'codeforces',
       username: 'tourist',
       verificationStatus: 'pending',
-      verificationToken: 'CODEONE-VERIFY-1234567890AB',
+      verificationTokenHash: hashChallenge('CODEONE-VERIFY-1234567890AB'),
       verificationExpiresAt: new Date(Date.now() + 60000),
     });
 
@@ -498,11 +494,11 @@ describe('P1 Platform Account Linking & Verification APIs (/api/v1/platform-acco
       platformName: 'codeforces',
       username: 'tourist',
       verificationStatus: 'pending',
-      verificationToken: activeToken,
+      verificationTokenHash: hashChallenge(activeToken),
       verificationExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
       verifiedAt: null,
     });
-    const updateSpy = jest.spyOn(prisma.platformAccount, 'update').mockResolvedValue({});
+    const updateManySpy = jest.spyOn(prisma.platformAccount, 'updateMany').mockResolvedValue({ count: 1 });
 
     jest.spyOn(adapterRegistry, 'getAdapter').mockReturnValue({
       verifyOwnership: jest.fn().mockRejectedValue(new SourceUnavailableError('codeforces')),
@@ -515,7 +511,14 @@ describe('P1 Platform Account Linking & Verification APIs (/api/v1/platform-acco
 
     expect(verifyRes.status).toBe(503);
     expect(verifyRes.body.error.code).toBe('SOURCE_UNAVAILABLE');
-    expect(updateSpy).not.toHaveBeenCalled();
+    expect(updateManySpy).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        verificationTokenHash: null,
+      }),
+      data: expect.objectContaining({
+        verificationTokenHash: hashChallenge(activeToken),
+      }),
+    }));
   });
 
   test('15. GET /api/v1/platform-accounts returns linked accounts for authenticated user', async () => {

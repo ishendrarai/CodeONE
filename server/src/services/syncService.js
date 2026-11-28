@@ -7,7 +7,7 @@
  */
 
 const prisma = require('../config/database');
-const adapterRegistry = require('../integrations/adapters');
+const adapterRegistry = require('../integrations/adapters/registry');
 const { logSecurityEvent } = require('./auditService');
 const { ERROR_CODES } = require('../utils/constants');
 
@@ -191,7 +191,7 @@ async function executeSyncJob(syncLogId, account) {
       data: { status: 'running' },
     });
 
-    const adapter = adapterRegistry.getAdapter(account.platformName);
+    const adapter = adapterRegistry.getPlatformAdapter(account.platformName);
     const caps = adapter.capabilities();
 
     const profile = await adapter.fetchProfile(account.username);
@@ -464,11 +464,78 @@ async function getSyncLogs(userId, filters = {}) {
   };
 }
 
+async function processSyncLog(syncLogId) {
+  const log = await prisma.syncLog.findUnique({
+    where: { id: syncLogId },
+    include: {
+      platformAccount: {
+        select: {
+          id: true,
+          platformName: true,
+          username: true,
+          verificationStatus: true,
+          isActive: true,
+        },
+      },
+    },
+  });
+
+  if (!log) {
+    throw createServiceError('Sync log not found.', 404, ERROR_CODES.NOT_FOUND);
+  }
+
+  try {
+    if (log.platformAccount.verificationStatus !== 'verified' || !log.platformAccount.isActive) {
+      throw createServiceError(
+        'Platform account is no longer active and verified.',
+        409,
+        ERROR_CODES.CONFLICT
+      );
+    }
+
+    const adapter = adapterRegistry.getPlatformAdapter(log.platformAccount.platformName);
+    const profile = await adapter.fetchProfile(log.platformAccount.username);
+    const data = {
+      lastSynced: new Date(),
+      ...(profile.canonicalHandle ? { username: profile.canonicalHandle } : {}),
+      ...(Number.isInteger(profile.rating) ? { rating: profile.rating } : {}),
+      ...(typeof profile.rank === 'string' ? { rank: profile.rank } : {}),
+    };
+
+    return await prisma.$transaction(async (tx) => {
+      await tx.platformAccount.update({
+        where: { id: log.platformAccount.id },
+        data,
+      });
+      return tx.syncLog.update({
+        where: { id: syncLogId },
+        data: {
+          status: 'success',
+          finishedAt: new Date(),
+          recordsFetched: 1,
+          errorMessage: null,
+        },
+      });
+    });
+  } catch (error) {
+    const status = error.code === ERROR_CODES.RATE_LIMIT_EXCEEDED ? 'rate_limited' : 'failed';
+    return prisma.syncLog.update({
+      where: { id: syncLogId },
+      data: {
+        status,
+        finishedAt: new Date(),
+        errorMessage: String(error.message || 'Synchronization failed.').slice(0, 1000),
+      },
+    });
+  }
+}
+
 module.exports = {
   triggerAccountSync,
   triggerAllAccountsSync,
   getSyncLogs,
   executeSyncJob,
+  processSyncLog,
   _activeSyncLocks: activeSyncLocks,
   _toLifecycleStatus: toLifecycleStatus,
 };

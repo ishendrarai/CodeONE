@@ -13,6 +13,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "seed": "node seeds/sample_data.js",
+    "test:e2e:codeforces": "node scripts/codeforcesLiveE2E.js",
     "test": "jest --runInBand",
     "test:coverage": "jest --coverage --runInBand",
     "test:watch": "jest --watch"
